@@ -1,0 +1,179 @@
+<!--
+ * @Page Name: iHasco_contractAmendmentNewTable
+ * @description: This page is used in ihasco amendment contract template.
+                 This table displays contract term, start date, end date and quote line items from amended quote.
+ * @Author: Nikhil
+ * @Last Modified Date: NA
+ * @Last Modified Change: NA
+ -->
+<apex:page showHeader="false" sidebar="false" cache="false" contentType="text/xml" controller="iHASCOQuoteTemplateControllerAmd">
+    <table>
+        <table-body>
+            <table-row>
+                <table-cell><block text-align="left" font-family="Arial-Bold, sans-serif" font-size="22pt" font-weight="900" margin-bottom="5px" color="#314A5B">Amended Contract Details</block></table-cell>
+            </table-row>
+        </table-body>
+    </table>
+    <table margin-top = "10px" width="100%">
+        <table-column column-width="50%"/>
+        <table-column column-width="50%"/>
+          <table-body>         
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Contract Term (Years):</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" >
+                    <block><apex:outputText value="{!finQuoteLinesAmend[0].Ihasco_Term__c} Year" rendered="{!IF(finQuoteLinesAmend[0].Ihasco_Term__c == '1' , true, false)}"></apex:outputText><apex:outputText value="{!finQuoteLinesAmend[0].Ihasco_Term__c} Years" rendered="{! IF(value(finQuoteLinesAmend[0].Ihasco_Term__c) > 1 , true, false)}"></apex:outputText></block>
+                 </table-cell>
+             </table-row>
+    </table-body>   
+</table> 
+    <table margin-top = "10px" width="100%">
+        <table-column column-width="50%"/>
+        <table-column column-width="50%"/>
+          <table-body>         
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Contract Start Date:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" ><block>{!DAY(finQuoteLinesAmend[0].SBQQ__StartDate__c)}/{!MONTH(finQuoteLinesAmend[0].SBQQ__StartDate__c)}/{!YEAR(finQuoteLinesAmend[0].SBQQ__StartDate__c)}</block>
+                 </table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell  color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Contract End Date:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" ><block>{!DAY(finQuoteLinesAmend[0].SBQQ__EndDate__c)}/{!MONTH(finQuoteLinesAmend[0].SBQQ__EndDate__c)}/{!YEAR(finQuoteLinesAmend[0].SBQQ__EndDate__c)}</block>
+                 </table-cell>
+             </table-row>
+    </table-body>   
+</table>
+<block page-break-inside="Avoid">
+    <table margin-top = "20px" width="100%" border-color="#000000" border-width="1px" border-style="solid" font-size="9pt">
+                <table-column column-width="40%"/>
+                <table-column column-width="20%"/>
+                <table-column column-width="20%"/>
+                <table-column column-width="20%"/>
+                 <table-header>
+                     <table-row text-align="center" font-family="Arial-Regular,sans-serif"  color="#ffffff" background-color="#314A5B" font-size="12px" font-weight="600">
+                         <table-cell  border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Product Line Item</block></table-cell>  
+                         <table-cell  border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Quantity</block></table-cell>
+                         <table-cell  border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Billing Frequency</block></table-cell>
+                         <table-cell  border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Price Per Annum</block></table-cell>
+                     </table-row>
+                </table-header>
+                <table-body> 
+                    <apex:repeat var="line" value="{!amendedFinalQuoteLine}">
+                        <table-row text-align="left" background-color="FFFFFF">
+                            <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block><apex:outputText value="{!HTMLENCODE(line.SBQQ__ProductName__c)}" /></block></table-cell>
+                            <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block>
+                            <apex:outputText value="{!line.SBQQ__Quantity__c}" rendered="{! IF(line.Number_of_Credits__c == null, true, false)}" />
+                            <apex:outputText value="{!line.Ihasco_Number_of_Credits__c} (Credits)" rendered="{! IF(line.Number_of_Credits__c != null && (line.SBQQ__ProductCode__c = 'IHCR' || LEFT(line.SBQQ__ProductCode__c,7) == 'IH-RPM-') , true, false)}" />
+                            <apex:outputText value="{!line.iHasco_Number_of_Users__c} (Users)" rendered="{! IF(line.iHasco_Number_of_Users__c != null && (contains(line.SBQQ__ProductCode__c,'Access')) , true, false)}" />
+                            </block>
+                            </table-cell>
+                            <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block><apex:outputText value="{!line.SBQQ__BillingFrequency__c}" /> </block></table-cell>
+                            <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block>
+                                <apex:outputText value="{0, number, £###,###,##0.00}" rendered="{! IF(line.SBQQ__ProductName__c == 'Open License Credits', true, false)}">
+                                    <apex:param value="{!OpenCreditPrice}" />
+                                </apex:outputText>
+                                <apex:outputText value="{0, number, £###,###,##0.00}" rendered="{! IF(line.iHasco_Number_of_Users__c == null && (contains(line.SBQQ__ProductCode__c,'Access')) , true, false)}">
+                                    <apex:param value="{!line.Annual_Price__c}" />
+                                </apex:outputText>
+                                <apex:outputText value="{0, number, £###,###,##0.00}" rendered="{! IF(line.iHasco_Number_of_Users__c != null && (contains(line.SBQQ__ProductCode__c,'Access')) , true, false)}">
+                                    <apex:param value="{!OpenCreditPrice}" />
+                                </apex:outputText>
+                                <apex:outputText value="{0, number, £###,###,##0.00}" rendered="{! IF(line.iHasco_Number_of_Users__c != null && line.Ihasco_Number_of_Credits__c != null, true, false)}">
+                                    <apex:param value="{!line.Annual_Price__c}" />
+                                </apex:outputText>
+                                <apex:outputText value="{0, number, £###,###,##0.00}" rendered="{! IF(line.Ihasco_Number_of_Credits__c != null &&  LEFT(line.SBQQ__ProductCode__c,7) == 'IH-RPM-', true, false)}">
+                                    <apex:param value="{!line.Annual_Price__c}" />
+                                </apex:outputText>  
+                                </block></table-cell>
+                        </table-row>
+                    </apex:repeat> 
+                </table-body>
+            </table>
+            <table>
+            <table-body>
+            <table-row text-align="center" font-family="Arial-Regular,sans-serif"  color="#ffffff" background-color="#314A5B" font-size="12px" font-weight="600">
+               <table-cell  border="3px solid white" width="393pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Totals</block></table-cell>
+                 <table-cell  border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block><apex:outputText value="{0, number, £###,###,##0.00}">
+                                    <apex:param value="{!premiumAnnual}" />
+                                </apex:outputText></block></table-cell>
+           </table-row>
+        </table-body>
+        </table>
+ </block>   
+    <table margin-top = "20px" width="100%"  text-align="center" font-family="Arial-Regular,sans-serif">
+        <table-column column-width="50%"/>
+        <table-column column-width="50%"/>
+          <table-body>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Amount Paid to Date:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="262pt" margin="0pt" padding-top="7px">
+                    <block>£{!amendAnnual}</block>
+                 </table-cell>
+             </table-row>
+              <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Outstanding Amount to be paid for the year:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="262pt" margin="0pt" padding-top="7px">
+                    <block>
+                        <apex:outputText value="£{!(premiumAnnual-amendAnnual)}" rendered="{!IF(premiumAnnual > amendAnnual, true, false)}"> </apex:outputText>
+                     <apex:outputText value="£0.00" rendered="{!IF(premiumAnnual > amendAnnual, false, true)}"> </apex:outputText></block>
+                 </table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Total Paid this annum:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="262pt" margin="0pt" padding-top="7px">
+                    <block>
+                    <apex:outputText value="£{!premiumAnnual}" rendered="{!IF(premiumAnnual > amendAnnual, true, false)}"> </apex:outputText>
+                        <apex:outputText value="£{!amendAnnual}" rendered="{!IF(premiumAnnual < amendAnnual, true, false)}"> </apex:outputText>
+                    </block>
+                 </table-cell>
+             </table-row>
+    </table-body>   
+</table>
+    
+    <table margin-top = "20px"  margin-bottom = "0px" width="100%" >
+        <table-body>     
+            <table-row color="#FFFFFF" text-align="center" font-family="Arial-Regular,sans-serif"  font-size="12px" font-weight="600" background-color= "#314A5B" >
+                <table-cell width="262pt" margin="0pt" padding-top="14px" padding-bottom="7px" border="3px solid white" ><block>Signed for and on behalf of “Client”</block></table-cell>   
+                <table-cell  width="262pt" margin="0pt" padding-top="7px" padding-bottom="7px" border="3px solid white"><block>Signed for and on behalf of “Service Provider”</block></table-cell>
+            </table-row>
+        </table-body>
+    </table>
+
+<table margin-top = "0px" margin-bottom = "20px" width="100%" text-align="center" font-family="Arial-Regular,sans-serif">
+        <table-column column-width="25%"/>
+        <table-column column-width="25%"/>
+        <table-column column-width="25%"/>
+        <table-column column-width="25%"/>
+    
+<table-body>         
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Name</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block></block>
+                 </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Name</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block>Alex Wilkins</block></table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Position</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block></block>
+                 </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Position</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block>Head of Business Development</block></table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Date</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block></block>
+                 </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Date</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block>{!Day(Today())}/{!Month(Today())}/{!Year(Today())}</block></table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Signed</block></table-cell>
+                 <table-cell color="#314A5B" font-size="10px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px">
+                     <block></block>
+                 </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="131pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Signed</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="131pt" margin="0pt" padding-top="7px"><block><external-graphic src="https://citation-qms--c.um2.content.force.com/servlet/servlet.ImageServer?id=0154G000008G6F0&oid=00DD0000000rguY" content-height="30px" /></block></table-cell>
+             </table-row>
+    </table-body>   
+</table>
+</apex:page>

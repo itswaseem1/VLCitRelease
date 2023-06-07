@@ -1,0 +1,67 @@
+public class ContractGroupStageAsyncUpdate implements Queueable {
+    private set<id> contractIds;
+
+    public ContractGroupStageAsyncUpdate(set<id> ids) {
+        this.contractIds = ids;
+    }
+    
+    public void execute(QueueableContext context) {
+        Map<id,Contract> contracts = new map<id,Contract>();
+        Map<String, String> gsmData = new Map<String, String>();
+        
+        if(!contractIds.isEmpty()){
+            Map<String, GroupedStagesMatrix__mdt> gsm  = GroupedStagesMatrix__mdt.getAll();
+            for(String groupstageskey : gsm.keySet()){
+                GroupedStagesMatrix__mdt groupstage = gsm.get(groupstageskey);
+                gsmData.put(groupstage.Combinations__c,groupstage.ContractGroupedStage__c);
+            }
+        }
+        
+        for(Contract cont : [SELECT id,Contract_grouped_stage__c, (SELECT id,Project_Stage__c FROM Projects1__r) FROM contract where id IN :contractIds]){
+            
+            set<String> Stagevalues = new set<String>();
+            string comb;
+            
+            if(cont.Projects1__r.size() > 0){
+                for(project__c project : cont.Projects1__r){
+                    if(!(project.Project_Stage__c == null) ){
+                        Stagevalues.add(project.Project_Stage__c);
+                    }
+                }
+                if(!Stagevalues.isEmpty()){
+                    comb = Stagevalues.toString().replace('}','').replace('{','').replace(', ',';');
+                    if(gsmData.containskey(comb)){
+                        String gstage = gsmData.get(comb);
+                        if(cont.Contract_grouped_stage__c !=gstage){
+                            Contract c = new Contract();
+                            c.Id = cont.id;
+                            c.Contract_grouped_stage__c = gstage;
+                            contracts.put(c.id,c);
+                        }
+                    } else {
+                        if(cont.Contract_grouped_stage__c != 'Partial'){
+                            Contract c = new Contract();
+                            c.Id = cont.id;
+                            c.Contract_grouped_stage__c = 'Partial';
+                            contracts.put(c.id,c);
+                        }
+                    }
+                }
+            }  
+            if(cont.Projects1__r.size() == 0){
+                Contract c = new Contract();
+                c.Id = cont.id;
+                c.Contract_grouped_stage__c = null;
+                contracts.put(c.id,c);
+                
+            }
+            
+        }
+        
+        if(!contracts.isEmpty()){
+            update contracts.values();
+        }
+    }
+
+
+}

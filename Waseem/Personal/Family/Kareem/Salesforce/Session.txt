@@ -1,0 +1,18 @@
+Standard Object
+Contact
+	Lookup Create
+	
+
+Custom Object
+CustomObj1
+	Lookup (Parent-Child)
+	Master-Detail
+
+
+CustomObject2
+
+Lookup				Master-Detail
+Non-Mandatory/Mandatory		Mandatory
+no Cascade delete		Cascade Delete
+No Rollup summary on parent	Roll up summary on parent
+

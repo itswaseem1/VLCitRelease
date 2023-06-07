@@ -1,0 +1,79 @@
+#Mid-Contract Purchase User Based Pricing
+#Change from 10 Course Access Subscription 80 users to All Course Access Subscription 200 Users 
+{
+    "EventType": "ContractAmended",
+    "PriceModel": "UserBased",
+    "ContractId": "8003H000000MYYIQA4",
+    "ContractNumber": "00081215",
+    "ContractStartDate": "2021-03-15",
+    "ContractEndDate": "2022-03-14",
+    "OrderId": "",
+	"OrderNumber": "",
+	"OrderStartDate": "",
+	"OrderEndDate": "",
+	"OrderActivatedDate": "",
+    "SourceOpportunityId": "0063H000006c5ZTQAY",
+    "AccountId": "0013H00000FqxNcQAJ",
+    "AccountName": "Was-Ihasco2",
+    "LmsId": "7174",
+    "PrimaryContact": {
+        "Id": "0033H00000DfF4xQAF",
+        "FirstName": "Test",
+        "LastName": "Contact1",
+        "Email": "mohammadwaseem@citation.co.uk",
+        "Phone": "+151-818-9505"
+    },
+    "SalesRepresentative": {
+        "FirstName": "Alex",
+        "LastName": "Wilkins",
+        "Email": "alex.wilkins@ihasco.co.uk",
+        "Phone": "+151-818-9505"
+    },
+    "Subscriptions": [
+        {
+            "SubscriptionId": "8003H000000MYAIQA4",
+            "Quantity": 1,
+            "SubscriptionName": "SUB-0042401",
+            "ContractId": "8003H000000MYYIQA4",
+            "ContractNumber": "00081214",
+            "SubscriptionStartDate": "2021-03-15",
+            "SubscriptionEndDate": "2022-03-14",
+            "ProductName": "User based Pricing",
+            "ProductCode": "IHUBP",
+            "ParentProductCode": "",
+            "ServiceStartDate": "2021-04-15",
+            "ServiceEndDate": "2022-04-15",
+            "UserLimit": 200
+        },
+        {
+            "SubscriptionId": "8003H000000AYAIQA4",
+            "Quantity": 1,
+            "SubscriptionName": "SUB-0042401",
+            "ContractId": "8003H000000AYYIQA4",
+            "ContractNumber": "00081214",
+            "SubscriptionStartDate": "2021-03-15",
+            "SubscriptionEndDate": "2022-03-14",
+            "ProductName": "All Course Access Subscription",
+            "ProductCode": "AccessKEYALL",
+            "ParentProductCode": "IHUBP",
+            "ServiceStartDate": "2021-04-15",
+            "ServiceEndDate": "2022-04-15"
+        }
+    ],
+    "AccountSites": [
+        {
+            "AccountId": "0013H00000FqxNcQAJ",
+            "SiteName": "SampleSiteTest1",
+            "Active": true,
+            "City": "Manchester",
+            "Street": null
+        },
+        {
+            "AccountId": "0013H00000FqxNcQAJ",
+            "SiteName": "SampleSiteTest2",
+            "Active": false,
+            "City": "London",
+            "Street": null
+        }
+    ]
+}

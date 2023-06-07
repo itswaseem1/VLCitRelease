@@ -1,0 +1,376 @@
+/********************************************************************************
+* bg_Account_Helper :
+*
+* Helper class for the Account object.
+*
+* Created By: Jamie Wooley
+* Created Date: 11-01-2015 
+*
+* Changes:
+* JW 17/05/2016: Added methods for the GA integration
+*********************************************************************************/
+public with sharing class bg_Account_Helper {
+
+    /*
+        Called from before insert trigger.
+        look at its annual revenue and assign the correct pricebook based on this.
+    */
+    /*
+    public static void checkPricebook(List<Account> accounts){
+        List<Account> accountsToProcess = new List<Account>();
+        for (Account account : accounts)
+        {
+            Boolean isAnnualRevenueNull = account.AnnualRevenue == null;
+            if (!isAnnualRevenueNull)
+            {
+                accountsToProcess.add(account);
+            }
+        }
+        if (!accountsToProcess.isEmpty())
+        {
+            setPricebook(accountsToProcess);
+        }
+    }
+    */
+
+    /*
+        Called from before update trigger.
+        look at its annual revenue and if it has changed, assign the correct pricebook based on the new value.
+    */
+    /*
+    public static void checkPricebook(List<Account> accounts, Map<Id, Account> oldAccounts){
+        List<Account> accountsToProcess = new List<Account>();
+        for (Account account : accounts)
+        {
+            Boolean isAnnualRevenueNull = account.AnnualRevenue == null;
+            Boolean hasAnnualRevenueChanged = account.AnnualRevenue != oldAccounts.get(account.Id).AnnualRevenue;
+            if (!isAnnualRevenueNull && hasAnnualRevenueChanged)
+            {
+                accountsToProcess.add(account);
+            }
+        }
+        if (!accountsToProcess.isEmpty())
+        {
+            setPricebook(accountsToProcess);
+        }
+    }
+    */
+
+    /*
+        Loop through the accounts that need a pricebook allocating to them and find the correct pricebook to assign.
+    */
+    /*
+    public static void setPricebook(List<Account> accountsToProcess){
+        List<Pricebook2> pricebooks = [SELECT Id, Name, Annual_Turnover_Maximum__c, Annual_Turnover_Minimum__c FROM Pricebook2 Where IsActive = true];
+        system.debug('**pricebooks**' + pricebooks);
+        for (Account account : accountsToProcess)
+        {
+            account = updateAccountPricebook(account, pricebooks);
+        }
+    }
+    */
+
+	/*
+    public static Account updateAccountPricebook(Account account, List<Pricebook2> pricebooks){
+        Boolean accountProcessed = false;
+        for (Pricebook2 pricebook : pricebooks)
+        {
+            Boolean revenueHigherThanMin = account.AnnualRevenue >= pricebook.Annual_Turnover_Minimum__c;
+            Boolean revenueLowerThanMax = account.AnnualRevenue <= pricebook.Annual_Turnover_Maximum__c;
+            if (revenueHigherThanMin && revenueLowerThanMax)
+            {
+                account.Price_Book__c = pricebook.Id;
+                accountProcessed = true;
+            }
+        }
+        if (!accountProcessed)
+        {
+            account.AnnualRevenue.addError(Label.QMS_Invalid_Revenue);
+        }
+        return account;
+    }
+    */
+
+
+    /*
+        Called from after update trigger.
+        Check if an account's pricebook has changed. If it has, get all of the related open opportunities and submit them for approval before the sales can continue.
+    */
+    
+    /*
+    public static void pricebookUpdateCheck(List<Account> accounts, Map<Id, Account> oldAccounts){
+        List<Id> changedPricebookAccountIds = new List<Id>();
+        for (Account account : accounts)
+        {
+            Boolean hasPricebookChanged = account.Price_Book__c != oldAccounts.get(account.Id).Price_Book__c;
+            if (hasPricebookChanged)
+            {
+                changedPricebookAccountIds.add(account.Id);
+            }
+        }
+        if(!changedPricebookAccountIds.isEmpty())
+        {
+            Map<String,Id> opptypes = bg_RecordType_Utils.GetRecordTypeIdsByDeveloperName(Opportunity.SObjectType);
+            Id QMSOppRecordTypeId = opptypes.get(bg_Constants.QMS_OPPORTUNITY_RECORDTYPE);
+            List<Opportunity> opportunities = [SELECT Id, OwnerId, Owner.ManagerId FROM Opportunity WHERE IsClosed = false AND AccountId IN :changedPricebookAccountIds AND RecordTypeId = :QMSOppRecordTypeId];
+            List<Opportunity> opportunitiesForApproval = new List<Opportunity>();
+            for(Opportunity opportunity : opportunities)
+            {
+                if (!Approval.isLocked(opportunity))
+                {
+                    opportunity.Pricebook_Approval_Required__c = true;
+                    opportunitiesForApproval.add(opportunity);
+                }
+            }
+            if(!opportunitiesForApproval.isEmpty())
+            {
+                update opportunitiesForApproval;
+            }
+        }
+    }
+	*/
+
+    /*
+        Called from after update trigger.
+        Check if an account has had it's contract set for the first time, and if it has, send this information across to GA
+    */
+    public static void checkAccountActivated(List<Account> accounts, Map<Id, Account> oldAccounts){
+        List<Id> accountsToProcess = new List<Id>();
+        for (Account account : accounts)
+        {
+            Boolean isActivated = account.Last_Contract__c != oldAccounts.get(account.Id).Last_Contract__c && oldAccounts.get(account.Id).Last_Contract__c == null;
+            Boolean hasGAClientID = account.gaClientID__c != null;
+            if (isActivated && hasGAClientID)
+            {
+                accountsToProcess.add(account.Id);
+            }
+        }
+        if (!accountsToProcess.isEmpty())
+        {
+            if (Limits.getFutureCalls() < Limits.getLimitFutureCalls())
+            {
+                sendActivation(accountsToProcess);
+            }
+            else
+            {
+                system.debug('Ran out of future calls');
+            }
+        }
+    }
+
+    /*
+        Called from after update trigger.
+        Check if an account has been deactivated, and if it has, send this information across to GA
+    */
+    public static void checkAccountDeactivated(List<Account> accounts, Map<Id, Account> oldAccounts){
+        List<Id> accountsToProcess = new List<Id>();
+        for (Account account : accounts)
+        {
+            Boolean isActivated = account.ATLASLive__c != oldAccounts.get(account.Id).ATLASLive__c && !account.ATLASLive__c;
+            Boolean hasGAClientID = account.gaClientID__c != null;
+            if (isActivated && hasGAClientID)
+            {
+                accountsToProcess.add(account.Id);
+            }
+        }
+        if (!accountsToProcess.isEmpty())
+        {
+            if (Limits.getFutureCalls() < Limits.getLimitFutureCalls())
+            {
+                sendDeactivation(accountsToProcess);
+            }
+            else
+            {
+                system.debug('Ran out of future calls');
+            }
+        }
+    }
+
+    @future (callout=true)
+    public static void sendActivation(List<Id> accountIds){
+        List<GA_Event_Log__c> eventLogs = new List<GA_Event_Log__c>();
+        List<Account> accountsToProcess = [select Id, gaClientID__c, Last_Contract__r.Contract_Value__c, Last_Contract__r.ContractNumber, Last_Contract__r.DiscAmt__c from Account where ID in :accountIds];
+        GA_Integration__c GASettings = GA_Integration__c.getOrgDefaults();
+        for (Account accountToProcess : accountsToProcess)
+        {
+            if (Limits.getCallouts() < Limits.getLimitCallouts())
+            {
+                HttpRequest req = new HttpRequest();
+                HttpResponse res = new HttpResponse();
+                Http http = new Http();
+                req.setHeader('Content-Length','8000');
+                req.setTimeout(120000);
+                req.setEndpoint(GASettings.Endpoint__c + '?' +
+                    encodeQueryParam('v', '1') + '&' +
+                    encodeQueryParam('tid', GASettings.Property_Id__c) +
+                    '&t=event&ec=salesforce&ea=contract%20renewal&ni=1&pa=purchase'
+                );
+                req.setMethod('POST');
+                req.setBody(
+                    encodeQueryParam('cid', accountToProcess.gaClientID__c.substringBefore(',')) + '&' +
+                    encodeQueryParam('ti', accountToProcess.Last_Contract__r.ContractNumber) + '&' +
+                    encodeQueryParam('tr', String.valueOf(accountToProcess.Last_Contract__r.Contract_Value__c)) + '&' +
+                    encodeQueryParam('tcc', String.valueOf(accountToProcess.Last_Contract__r.DiscAmt__c)) + '&' +
+                    encodeQueryParam('pr1nm', 'Product') + '&' +
+                    encodeQueryParam('pr1pr', String.valueOf(accountToProcess.Last_Contract__r.Contract_Value__c))  + '&' +
+                    encodeQueryParam('pr1qt', '1') + '&' +
+                    encodeQueryParam('pr1cc', String.valueOf(accountToProcess.Last_Contract__r.DiscAmt__c))  + '&' +
+                    encodeQueryParam('z', generateRandomString())
+                );
+                system.debug('activate request: ' + req);
+                system.debug('activate request body: ' + req.getBody());
+                try{
+                    res = http.send(req);
+                    system.debug('activate response: ' + res);
+                    system.debug('activate response body: ' + res.getBody());
+                } catch (System.CalloutException e){
+                    System.debug('Callout error: ' + e);
+                    System.debug(res.toString());
+                }
+                GA_Event_Log__c eventLog = generateEventLog(res, req, accountToProcess.Id, bg_Constants.ACCOUNT_ACTIVATION);
+                eventLogs.add(eventLog);
+            }
+            else
+            {
+                system.debug('Ran out of callouts');
+            }
+        }
+        if (!eventLogs.isEmpty())
+        {
+            insert eventLogs;
+        }
+    }
+
+    @future (callout=true)
+    public static void sendDeactivation(List<Id> accountIds){
+        List<GA_Event_Log__c> eventLogs = new List<GA_Event_Log__c>();
+        List<Account> accountsToProcess = [select Id, gaClientID__c from Account where ID in :accountIds];
+        GA_Integration__c GASettings = GA_Integration__c.getOrgDefaults();
+        for (Account accountToProcess : accountsToProcess)
+        {
+            List<String> gaClientIDs = accountToProcess.gaClientID__c.split(', ');
+            system.debug('gaClientIDs: ' + gaClientIDs);
+            for (Integer i = 1; i <= gaClientIDs.size(); i+=20)
+            {
+                if (Limits.getCallouts() < Limits.getLimitCallouts())
+                {
+                    HttpRequest req = new HttpRequest();
+                    HttpResponse res = new HttpResponse();
+                    Http http = new Http();
+                    req.setHeader('Content-Length','8000');
+                    req.setTimeout(120000);
+                    req.setEndpoint(GASettings.Endpoint__c);
+                    req.setMethod('POST');
+                    for (Integer j = 0; j < 20 && i*j < gaClientIDs.size(); j++)
+                    {
+                        if (String.isNotBlank(gaClientIDs.get(j*i)))
+                        {
+                            req.setBody(
+                                req.getBody() +
+                                encodeQueryParam('v', '1') + '&' +
+                                encodeQueryParam('tid', GASettings.Property_Id__c) +
+                                '&t=event&ec=salesforce&ea=account%20deactivated&ni=1&cd13=inactive&' +
+                                encodeQueryParam('cid', gaClientIDs.get(j*i)) + '&' +
+                                encodeQueryParam('z', generateRandomString()) + '&'
+                            );
+                        }
+                    }
+                    system.debug('deactivate request: ' + req);
+                    system.debug('deactivate request body: ' + req.getBody());
+                    try{
+                        res = http.send(req);
+                        system.debug('deactivate response: ' + res);
+                        system.debug('deactivate response body: ' + res.getBody());
+                    } catch (System.CalloutException e){
+                        System.debug('Callout error: ' + e);
+                        System.debug(res.toString());
+                    }
+                    GA_Event_Log__c eventLog = generateEventLog(res, req, accountToProcess.Id, bg_Constants.ACCOUNT_DEACTIVATION);
+                    eventLogs.add(eventLog);
+                }
+                else
+                {
+                    system.debug('Ran out of callouts');
+                    break;
+                }
+            }
+        }
+        if (!eventLogs.isEmpty())
+        {
+            insert eventLogs;
+        }
+    }
+
+    private static String encodeQueryParam(String paramName, String paramVal){
+        return paramName + '=' + EncodingUtil.urlEncode(paramVal, 'UTF-8');
+    }
+
+    private static String generateRandomString(){
+        String hashString = '1000' + String.valueOf(Datetime.now().formatGMT('yyyy-MM-dd HH:mm:ss.SSS')); 
+        Blob hash = Crypto.generateDigest('MD5', Blob.valueOf(hashString)); 
+        return EncodingUtil.convertToHex(hash); 
+    }
+
+    private static GA_Event_Log__c generateEventLog(HttpResponse res, HttpRequest req, Id recordId, String eventType){
+        return new GA_Event_Log__c(
+            Status__c = res.getStatus(),
+            Related_Record_ID__c = recordId,
+            Response__c = res.getBody(),
+            Event_Type__c = eventType,
+            Request__c = req.getBody()
+        );
+    }
+    
+    public static void handlePostCodeAndSegChange(List<Account> newAccList, Map<id,Account> oldAccMap,Map<id,Account> newAccMap){
+        Set<id> idSet = new Set<id>();
+        Set<String> contractRecTypes = new Set<String>();
+    	contractRecTypes.addAll(System.label.Contact_Strategy_Contract_Record_Types.split(',')) ;
+        for(Contract con: [SELECT id, Accountid  from Contract where (status = 'Active' or status = 'Activated') and recordTypeId IN :contractRecTypes and Accountid IN :newAccMap.keyset()]){
+            if((oldAccMap.get(con.Accountid).S__c != newAccMap.get(con.Accountid).S__c) || (oldAccMap.get(con.Accountid).Postcode_District__c != newAccMap.get(con.Accountid).Postcode_District__c) ){
+            	idSet.add(con.Accountid);
+            }
+        }
+        if(!idSet.isEmpty() && AvoidRecursion.RunTer_isFirstRun()){   
+            TerritiroryAssignmentHandler job = new TerritiroryAssignmentHandler() ;
+            job.accids = idSet; 
+            System.enqueueJob(job);
+        }  
+    }
+    
+    public static void processIHASCOAccountChange(List<Account> accounts, Map<Id, Account> oldAccounts){
+        Set<Id> accountsToProcessiHASCO = new Set<Id>();
+        List<IHASCOLmsQueue.CalloutData> AccountOwnersToLms = new List<IHASCOLmsQueue.CalloutData>();
+        for (Account account : accounts)
+        {
+            Account oldAccount = oldAccounts.get(account.id);
+            if(account.iHASCO_Finance_Status__c != oldAccount.iHASCO_Finance_Status__c){
+                List<String> controllers = System.Label.iHASCOAccountStatusTriggers.split(',');
+                if(controllers.contains(account.iHASCO_Finance_Status__c) && controllers.contains(oldAccount.iHASCO_Finance_Status__c) 
+                   || (account.iHASCO_Finance_Status__c == System.Label.iHASCOAccountInactive) ) {
+                       accountsToProcessiHASCO.add(account.id);
+                   }
+            }
+            if(account.iHASCO_Account_Manager__c != oldAccount.iHASCO_Account_Manager__c){
+                 AccountOwnersToLms.add(new IHASCOLmsQueue.CalloutData(account.id, Label.iHASCO_Account_Owner_change_Event_to_LMS));
+            }
+        }
+        if(!accountsToProcessiHASCO.isEmpty()){
+            if (Limits.getFutureCalls() < Limits.getLimitFutureCalls()){
+                iHASCOLmsStatusUpdate(accountsToProcessiHASCO);
+            }
+        }
+        if(!AccountOwnersToLms.isEmpty()){
+            iHASCOLmsQueue queue = new iHASCOLmsQueue(AccountOwnersToLms);
+            System.enqueueJob(queue);
+        }
+    }
+    
+    @future (callout=true)
+    public static void iHASCOLmsStatusUpdate(Set<id> AccIds){ 
+        	iHASCOLmsRestOutbound callLMS = new iHASCOLmsRestOutbound();
+        for(id acid :AccIds){
+              callLMS.sendLMSData(acid, System.Label.iHASCOAccountStatusChangeEvent);
+        }
+    }
+
+}

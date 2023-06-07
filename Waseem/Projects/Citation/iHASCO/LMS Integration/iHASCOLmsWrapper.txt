@@ -1,0 +1,149 @@
+public class iHASCOLmsWrapper 
+{
+    public String EventType;
+    public String PriceModel;
+	public String ContractId;	
+	public String ContractNumber;	
+	public Date StartDate ;		
+	public Date EndDate;	
+	public String OrderId;		
+	public String OrderNumber;			
+	public String OrderActivatedDate ;	
+	public String SourceOpportunityId ;	
+	public String AccountId ;	
+	public String AccountName ;
+	public String LmsId ; 	
+	public PrimaryContact PrimaryContact ;	
+	public SalesRepresentative SalesRepresentative ;	
+	public List<LineItem> LineItems ;	
+	public List<CreditPurchases> CreditPurchases ;	
+	public List<AccountSites> AccountSites ;	
+	public class AccountSites {	
+		public String AccountId ;	
+		public String SiteName ;	
+		public Boolean Active ;	
+		public String City ;	
+		public String Street ;	
+        
+        public AccountSites(Site__c site){
+            this.AccountId  = site.id;
+            this.SiteName = site.Name;
+            this.Active = site.Active__c;
+            this.City = site.City__c;
+            this.Street = site.Street__c;
+        }
+	}	
+	public class LineItem {	
+		public String Id ;	
+		public Integer Quantity ;	
+		public String Name ;	
+		public String ContractId ;	
+		public String ContractNumber ;	
+		public Date StartDate ;	
+		public Date EndDate ;	
+		public String ProductName ;	
+		public String ProductCode ;	
+		public String ParentProductCode ;	
+		public Date ServiceStartDate ;	
+		public Date ServiceEndDate ;
+        public String UserLimit;
+        
+        public LineItem(SBQQ__Subscription__c sc){
+          this.Id = sc.Id;
+            if(sc.SBQQ__Quantity__c != null){
+                this.Quantity = (Integer)sc.SBQQ__Quantity__c;
+            }
+            this.UserLimit = '';
+            this.Name = sc.Name;
+            this.ContractId = sc.SBQQ__Contract__c;
+            this.ContractNumber = sc.SBQQ__ContractNumber__c;
+            this.StartDate = sc.SBQQ__StartDate__c;
+            this.EndDate = sc.SBQQ__EndDate__c;
+            this.ProductName = sc.SBQQ__ProductName__c;
+            this.ProductCode = sc.ProductCode__c;
+            this.ParentProductCode = sc.ParentProductCode__c; 
+            this.ServiceStartDate = sc.Service_Start_Date__c;
+            this.ServiceEndDate = sc.Service_End_Date__c;
+            if(sc.iHasco_Number_of_Users__c > 0 && sc.ProductCode__c == 'IHUBP'){
+                this.UserLimit = String.valueof(sc.iHasco_Number_of_Users__c);
+            }
+            
+        }
+	}	
+	public class SalesRepresentative {	
+		public String FirstName ;	
+		public String LastName ;	
+		public String Email ;	
+		public String Phone ;	
+        
+        public SalesRepresentative(String fn, String ln, String email, String Phone){
+            this.FirstName = fn;
+            this.LastName = ln;
+            this.Email = email;
+            this.Phone = phone;
+        }
+	}	
+	public class CreditPurchases {	
+		public String LineItemId ;	
+		public Date PurchaseDate ;	
+		public Integer Quantity ;	
+        
+        public CreditPurchases(SBQQ__Subscription__c sc){
+            this.LineItemId = sc.SBQQ__RequiredById__c;
+            this.PurchaseDate = Date.valueof(sc.CreatedDate);
+            if(sc.Ihasco_Number_of_Credits__c != null){
+                this.Quantity = (Integer)sc.Ihasco_Number_of_Credits__c;
+            }
+        }
+	}	
+	public class PrimaryContact {	
+		public String Id ;	
+		public String FirstName	 ;
+		public String LastName ;	
+		public String Email ;	
+		public String Phone ;	
+        
+        public PrimaryContact(Id conId, String fn, String ln, String Email, String Phone){
+            this.id = conId;
+            this.FirstName = fn;
+            this.LastName = ln;
+            this.Email = Email;
+            this.Phone = Phone;
+        }
+	}
+   
+    
+    public iHASCOLmsWrapper(Order tc, Contact con) {
+      
+    }
+    public iHASCOLmsWrapper(Contract Contr, List<Site__c> sites, String eventType){
+        this.EventType = eventType;
+        System.debug('Setting-eT' + this.EventType);
+        this.PriceModel = Contr.License_Model__c.replaceAll( '\\s+', '');
+        this.ContractId = Contr.Id;
+        this.ContractNumber = contr.ContractNumber;
+        this.StartDate = contr.StartDate;
+        this.EndDate = contr.EndDate;
+        this.SourceOpportunityId = contr.SBQQ__Opportunity__c;
+        this.AccountId = Contr.AccountId;
+        this.AccountName = Contr.Account.Name;
+        this.LmsId = Contr.Account.LMS_ID__c;
+        this.PrimaryContact = new PrimaryContact(contr.SBQQ__Quote__r.SBQQ__PrimaryContact__c,contr.SBQQ__Quote__r.SBQQ__PrimaryContact__r.FirstName,contr.SBQQ__Quote__r.SBQQ__PrimaryContact__r.LastName,
+                                  contr.SBQQ__Quote__r.SBQQ__PrimaryContact__r.Email,contr.SBQQ__Quote__r.SBQQ__PrimaryContact__r.Phone);
+        this.SalesRepresentative = new SalesRepresentative(contr.Owner.FirstName,contr.Owner.LastName,contr.Owner.Email,contr.Owner.Phone);
+        this.CreditPurchases = new List<CreditPurchases>();
+        this.LineItems = new List<LineItem>();
+        for(SBQQ__Subscription__c sc : Contr.SBQQ__Subscriptions__r){
+            if( (sc.ProductCode__c == 'IHCR') || (sc.ProductCode__c.Startswith('IH-RPM-'))){
+                System.debug('-->' + sc);
+                this.CreditPurchases.add(new CreditPurchases(sc));
+            } else {
+                this.LineItems.add(new LineItem(sc));
+            }
+        }
+        this.AccountSites = new List<AccountSites>();
+        for(Site__c s : sites){
+            this.AccountSites.add(new AccountSites(s));
+        }
+    }
+}

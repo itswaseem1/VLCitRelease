@@ -1,0 +1,29 @@
+<table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Name:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="135pt" margin="0pt" padding-top="7px"><block>{!quote.SBQQ__PrimaryContact__r.name}</block>
+			     </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Name:</block></table-cell>
+                 <table-cell border="1px solid black" padding="4pt" padding-top="8pt"><block font-size="8pt">Alex Wilkins</block></table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Position:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="135pt" margin="0pt" padding-top="7px"><block>{{_es_:signer1:title}}</block>
+			     </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Position:</block></table-cell>
+                 <table-cell border="1px solid black" padding="4pt" padding-top="8pt"><block font-size="8pt">Head of Business Development</block></table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Date:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="135pt" margin="0pt" padding-top="7px"><block>{{Dte_es_:signer1:date}}</block>
+			     </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Date:</block></table-cell>
+                 <table-cell border="1px solid black" padding="4pt" padding-top="8pt"><block font-size="8pt">{{Dte_es_:signer1:date}}</block></table-cell>
+             </table-row>
+             <table-row>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Signed:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="135pt" margin="0pt" padding-top="7px"><block>
+				 	{{Sig_es_:signer1:signature}}</block>
+			     </table-cell>
+                 <table-cell color="#FFFFFF" font-size="12px" font-weight="600" background-color= "#314A5B" border="3px solid white" width="135pt" margin="0pt" padding-top="7px" padding-bottom="7px"><block>Signed:</block></table-cell>
+                 <table-cell color="#314A5B" font-size="11px" font-weight="500" background-color= "#DDE6EB" border="3px solid white" width="135pt" margin="0pt" padding-top="7px"><block><external-graphic src="https://citation-qms--c.um2.content.force.com/servlet/servlet.ImageServer?id=0154G00000862dw&oid=00DD0000000rguY&lastMod=1649256340000" content-height="30px" /></block></table-cell>
+             </table-row>

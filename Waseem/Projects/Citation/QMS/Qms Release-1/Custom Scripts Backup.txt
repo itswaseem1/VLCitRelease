@@ -1,0 +1,220 @@
+/**
+ * This method is called by the calculator after calculation has completed, but before formula fields are
+ * re-evaluated.
+ * @param {QuoteModel} quoteModel JS representation of the quote being evaluated
+ * @param {QuoteLineModel[]} quoteLineModels An array containing JS representations of all lines in the quote
+ * @returns {Promise}
+ */
+export function onAfterCalculate(quote, lines, conn) {
+var productIds = [];
+	if (lines.length > 0) 
+	{
+		lines.forEach(function(line) {
+			
+			productIds.push(line.record['SBQQ__Product__c']);
+		});
+
+		var conditions = {
+			Id: {$in: productIds}
+		};
+		var fields = ['Id', 'Name', 'Business_Type__c, Family'];
+		return conn.sobject('Product2')
+			.select(fields)
+			.include("PricebookEntries") // include child relationship records in query result. 
+				.select("Id, Name, Additional_Sites_Mixed_P_P__c, Additional_Sites_P_P__c, Days__c, Presentation_Days__c, Pricebook2Id, UnitPrice")
+				.where({
+					Pricebook2Id: quote.record['SBQQ__PriceBook__c']
+				})
+				.end()
+			.where(conditions)
+			.execute(function(err, records) {
+				if (err) {
+					return Promise.reject(err);
+				} else {
+					var productsByProductId = {};
+					records.forEach(function(record) {
+						productsByProductId[record.Id] = record;
+					});
+
+					/*
+					*	Store using arrays to simulate Map<Id, List < line > > 
+					*/
+
+					lines.forEach(function(line){
+						var productObj = productsByProductId[line.record['SBQQ__Product__c']];
+						
+						//console.log(productObj.Business_Type__c);
+						if(productObj != undefined && productObj.Business_Type__c == "QMS")
+						{
+							if(line.record['Group_Term__c'] > 0)
+							{
+								var termMultiplier = 1;
+								var termMonths = line.record['Group_Term__c'];
+
+								/*
+								if(termMonths > 84)
+								{
+									termMultiplier = 1;
+								}
+								else if(termMonths > 60)
+								{
+									termMultiplier = 1.05;
+								}
+								else if(termMonths > 36)
+								{
+									termMultiplier = 1.10;
+								}
+								else if(termMonths > 1)
+								{
+									termMultiplier = 1.15;
+								}
+								else
+								{
+									termMultiplier = 1;
+								}
+								*/
+								/*
+								if(termMonths > 119)
+								{
+									termMultiplier = 0.8694232861806311;
+								}
+								else if(termMonths >= 84)
+								{
+									termMultiplier = 0.9127906976744186;
+								}
+								else if(termMonths > 60)
+								{
+									termMultiplier = 0.9108527131782946;
+								}
+								else if(termMonths > 36)
+								{
+									termMultiplier = 0.9573643410852713;
+								}
+								else
+								{
+									termMultiplier = 1;
+								}
+								*/
+
+								if (termMonths > 0 && termMonths <= 36)
+								{
+									termMultiplier = 1;	
+								}
+								else if (termMonths > 37 && termMonths <= 60)
+								{
+									termMultiplier = 0.9565217;
+								}
+								else if (termMonths > 61 && termMonths <= 84)
+								{
+									termMultiplier = 0.9129488574537541;
+								}
+								else if (termMonths > 85)
+								{
+									termMultiplier = 0.8694232861806311;
+								}
+
+
+								var sitesMultiplier = line.record['Sites__c'] == undefined ? 1 : line.record['Sites__c'];
+								var additionalSitesPrice = productObj.PricebookEntries.records[0].Additional_Sites_P_P__c == null ? 0 : productObj.PricebookEntries.records[0].Additional_Sites_P_P__c;
+								
+								var pricebookDays = productObj.PricebookEntries.records[0].Days__c == null ? 0 : productObj.PricebookEntries.records[0].Days__c;
+		
+								var additionalSitesDays = 1;
+								if(line.record['Same_Policies_Procedures__c'])
+								{
+									sitesMultiplier =  line.record['Sites__c'] == undefined ? 1 : Math.ceil(Math.sqrt(sitesMultiplier));
+									additionalSitesPrice = productObj.PricebookEntries.records[0].Additional_Sites_P_P__c
+									additionalSitesDays = 0.5;
+								}
+
+								var additionalUnitPrice = (sitesMultiplier - 1 ) * additionalSitesPrice;
+
+								console.log('**Product Name: ' + productObj.Name);
+								console.log('**additionalSitesPrice: ' + additionalSitesPrice);
+								console.log('**sitesMultiplier: ' + sitesMultiplier);
+								console.log('**additionalUnitPrice: ' + additionalUnitPrice);
+								console.log(pricebookDays);
+								if(productObj.Family == 'Certification')
+								{
+									var termBasedUnitPriceNotRounded = (productObj.PricebookEntries.records[0].UnitPrice * termMultiplier) + additionalUnitPrice;
+									var termBasedUnitPrice =  Math.round(termBasedUnitPriceNotRounded);
+									console.log('**UnitPrice: ' + productObj.PricebookEntries.records[0].UnitPrice * termMultiplier);
+									console.log('**additionalUnitPrice: ' + additionalUnitPrice);
+									console.log('**termBasedUnitPrice: ' + termBasedUnitPrice);
+
+									if(line.record['SBQQ__ListPrice__c'] != termBasedUnitPrice)
+									{
+										line.record['SBQQ__CustomerPrice__c'] = termBasedUnitPrice  - line.record['Custom_Total_Discount_Amount__c']; // 11/12/2018 - removing cust tot discount
+										line.record['SBQQ__CustomerTotal__c'] = termBasedUnitPrice;
+										line.record['SBQQ__ListTotal__c'] = termBasedUnitPrice;
+										line.record['SBQQ__NetPrice__c'] = termBasedUnitPrice - line.record['Custom_Total_Discount_Amount__c']; // 11/12/2018 - removing cust tot discount;
+
+										line.record['SBQQ__NetTotal__c'] = termBasedUnitPrice;
+										line.record['SBQQ__PartnerPrice__c'] = termBasedUnitPrice;
+										line.record['SBQQ__PartnerTotal__c'] = termBasedUnitPrice;
+										line.record['SBQQ__ProratedListPrice__c'] = termBasedUnitPrice;
+										line.record['SBQQ__ProratedPrice__c'] = termBasedUnitPrice;
+										line.record['SBQQ__RegularPrice__c'] = termBasedUnitPrice;
+										line.record['SBQQ__RegularTotal__c'] = termBasedUnitPrice;
+									}
+									line.record['SBQQ__SubscriptionTerm__c'] = 12;
+									line.record['SBQQ__ListPrice__c'] = termBasedUnitPrice / 12 ; // 04/12/2018 - ISO pricing fix
+                                                                        line.record['SBQQ__SpecialPriceType__c'] = 'Custom' ; // 04/12/2018 - ISO Pricing fix 
+ 									line.record['SBQQ__ProrateMultiplier__c'] = 1;
+
+									 line.record['Cert_Days__c'] = pricebookDays + ((sitesMultiplier - 1 ) * additionalSitesDays);
+									//line.record['Presentation_Days__c'] = ;
+								}
+								else if(productObj.Family == 'Audit')
+								{
+									var termBasedUnitPriceNotRounded = (productObj.PricebookEntries.records[0].UnitPrice * termMultiplier) + additionalUnitPrice;
+									console.log('Audit: termBasedUnitPriceNotRounded: ' + termBasedUnitPriceNotRounded);
+									
+									var termBasedUnitPrice = Math.round(termBasedUnitPriceNotRounded);
+									console.log('Audit: termBasedUnitPrice: ' + termBasedUnitPrice);
+									
+									var proRateMultiplier = (termMonths - 12 ) /line.record['SBQQ__DefaultSubscriptionTerm__c']; 
+                                                                        console.log('ProrateMultiplier is : ' + proRateMultiplier) ;
+									if(line.record['SBQQ__ListPrice__c'] != termBasedUnitPrice)
+									{
+                                                                               console.log('CustomerPrice is : ' + (termBasedUnitPrice*proRateMultiplier)); // 04/12/2018 added debug
+ 										line.record['SBQQ__CustomerPrice__c'] = termBasedUnitPrice*proRateMultiplier;
+ 										line.record['SBQQ__CustomerTotal__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__ListTotal__c'] = termBasedUnitPrice*proRateMultiplier;
+ 										line.record['SBQQ__NetPrice__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__NetTotal__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__PartnerPrice__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__PartnerTotal__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__ProratedListPrice__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__ProratedPrice__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__RegularPrice__c'] = termBasedUnitPrice*proRateMultiplier;
+										line.record['SBQQ__RegularTotal__c'] = termBasedUnitPrice*proRateMultiplier;
+									}
+									line.record['SBQQ__SubscriptionTerm__c'] = termMonths - 12;
+									// comment out 04/12/2018 line.record['SBQQ__ListPrice__c'] = termBasedUnitPrice;
+
+                                                                        line.record['SBQQ__ListPrice__c'] = (termBasedUnitPrice   * proRateMultiplier) / (termMonths - 12) ; // 04/12/2018 - ISO pricing fix
+                                                                        console.log('Formula Is ' + (termBasedUnitPrice   * proRateMultiplier) / (termMonths - 12)) ;
+                                                                        console.log('ListPrice Is ' +  line.record['SBQQ__ListPrice__c']) ;
+
+                                                                        line.record['SBQQ__CustomerPrice__c'] = (termBasedUnitPrice*proRateMultiplier) - line.record['Custom_Total_Discount_Amount__c']; // 04/12/2018 - ISO fixing
+                                                                        // 11/12/2018 - removing cust tot discount 
+                                                                          line.record['SBQQ__NetPrice__c'] = (termBasedUnitPrice*proRateMultiplier) - line.record['Custom_Total_Discount_Amount__c']; // 04/12/2018 - ISO fixing
+                                                                      
+ 										
+ 										
+
+                                                                        line.record['SBQQ__SpecialPriceType__c'] = 'Custom' ; // 04/12/2018 - ISO Pricing fix 
+
+									line.record['Audit_Days__c'] = pricebookDays + ((sitesMultiplier - 1 ) * additionalSitesDays);
+									//line.record['Presentation_Days__c'] = ;
+								}
+							}
+							console.log(line.record);
+						}
+					});
+				}
+			});
+	}
+	return Promise.resolve();
+}

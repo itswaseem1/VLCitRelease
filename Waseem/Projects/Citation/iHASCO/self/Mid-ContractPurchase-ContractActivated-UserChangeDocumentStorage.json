@@ -1,0 +1,64 @@
+#Mid-Contract Purchase Users addition from 30 to 50 for Document Storage.
+{
+    "EventType": "ContractActivated",
+    "PriceModel": "UserBased",
+    "ContractId": "8003H000000MYYIQA4",
+    "ContractNumber": "00081215",
+    "ContractStartDate": "2021-03-15",
+    "ContractEndDate": "2022-03-14",
+    "OrderId": "",
+	"OrderNumber": "",
+	"OrderStartDate": "",
+	"OrderEndDate": "",
+	"OrderActivatedDate": "",
+    "SourceOpportunityId": "0063H000006c5ZTQAY",
+    "AccountId": "0013H00000FqxNcQAJ",
+    "AccountName": "Was-Ihasco2",
+    "LmsId": "7174",
+    "PrimaryContact": {
+        "Id": "0033H00000DfF4xQAF",
+        "FirstName": "Test",
+        "LastName": "Contact1",
+        "Email": "mohammadwaseem@citation.co.uk",
+        "Phone": "+151-818-9505"
+    },
+    "SalesRepresentative": {
+        "FirstName": "Alex",
+        "LastName": "Wilkins",
+        "Email": "alex.wilkins@ihasco.co.uk",
+        "Phone": "+151-818-9505"
+    },
+    "Subscriptions": [
+        {
+            "SubscriptionId": "8003H000000AYFIQA4",
+            "Quantity": 1,
+            "SubscriptionName": "SUB-0042402",
+            "ContractId": "8003H000000AXYIQA4",
+            "ContractNumber": "00081218",
+            "SubscriptionStartDate": "2021-03-15",
+            "SubscriptionEndDate": "2022-03-14",
+            "ProductName": "Document Storage",
+            "ProductCode": "ASDS",
+            "ParentProductCode": "",
+            "ServiceStartDate": "2021-04-15",
+            "ServiceEndDate": "2022-04-15",
+            "UserLimit": 50
+        }
+    ],
+    "AccountSites": [
+        {
+            "AccountId": "0013H00000FqxNcQAJ",
+            "SiteName": "SampleSiteTest1",
+            "Active": true,
+            "City": "Manchester",
+            "Street": null
+        },
+        {
+            "AccountId": "0013H00000FqxNcQAJ",
+            "SiteName": "SampleSiteTest2",
+            "Active": false,
+            "City": "London",
+            "Street": null
+        }
+    ]
+}

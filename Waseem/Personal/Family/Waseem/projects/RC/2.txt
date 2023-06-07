@@ -1,0 +1,65 @@
+public class AccountGroupStageAsyncUpdate implements Queueable {
+    private set<id> accountIds;
+
+    public AccountGroupStageAsyncUpdate(set<id> ids) {
+        this.accountIds = ids;
+    }
+    
+    public void execute(QueueableContext context) {
+        Map<id,Account> accounts = new map<id,Account>();
+        Map<String, String> gsmData = new Map<String, String>();
+        
+        if(!accountIds.isEmpty()){
+            Map<String, GroupedStagesMatrix__mdt> gsm  = GroupedStagesMatrix__mdt.getAll();
+            for(String groupstageskey : gsm.keySet()){
+                GroupedStagesMatrix__mdt groupstage = gsm.get(groupstageskey);
+                gsmData.put(groupstage.Combinations__c,groupstage.AccountGroupedStage__c);
+            }
+        }
+        
+        for(Account acts : [SELECT id, Account_grouped_stage__c, (SELECT id,Contract_grouped_stage__c FROM contracts) FROM account where id IN :accountIds]){
+            
+            set<String> Stagevalues = new set<String>();
+            string comb;
+            
+            if(acts.contracts.size() > 0){
+                for(contract contr : acts.contracts){
+                    if(!(contr.Contract_grouped_stage__c == null) ){
+                        Stagevalues.add(contr.Contract_grouped_stage__c);
+                    }
+                }
+                if(!Stagevalues.isEmpty()){
+                    comb = Stagevalues.toString().replace('}','').replace('{','').replace(', ',';');
+                    if(gsmData.containskey(comb)){
+                        String gstage = gsmData.get(comb);
+                        if(acts.Account_grouped_stage__c !=gstage){
+                            Account a = new Account();
+                            a.Id = acts.id;
+                            a.Account_grouped_stage__c = gstage;
+                            accounts.put(a.id,a);
+                        }
+                    } else {
+                        if(acts.Account_grouped_stage__c != 'Partial'){
+                            Account a = new Account();
+                            a.Id = acts.id;
+                            a.Account_grouped_stage__c = 'Partial';
+                            accounts.put(a.id,a);
+                        }
+                    }
+                }
+            }  
+            if((acts.contracts.size() == 0) || comb == null){
+                Account a = new Account();
+                a.Id = acts.id;
+                a.Account_grouped_stage__c = null;
+                accounts.put(a.id,a);
+                
+            }
+            
+        }
+        
+        if(!accounts.isEmpty()){
+            update accounts.values();
+        }    
+    }
+}

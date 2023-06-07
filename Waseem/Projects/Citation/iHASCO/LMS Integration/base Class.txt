@@ -1,0 +1,252 @@
+public class iHASCOLmsRestOutbound {
+	
+    private iHASCOLms__mdt settings;
+    private String Endpoint = '';
+    private String bearerToken = '';
+    private String authorizationHeader = 'Bearer ';
+    private HttpResponse res;
+    private List<WebserviceShip> shipUpdates = new List<WebserviceShip>();
+ //   List<ShipStaging__c> stagingRecs = new List<ShipStaging__c>();
+    private Datetime dataTimestamp;
+        
+    private static final Integer TIMEOUT_MS = 30000;
+    
+//    private static ApplicationLogger logger = ApplicationLogger.getInstance();
+    
+    private Boolean successSoFar = true;
+    
+    private static final Integer MAX_ERROR_LENGTH = 1000;
+    @TestVisible private static final String ERROR_MSG_HTTP = 'Non 200 status code received at ';
+    @TestVisible private static final String ERROR_MSG_BAD_PARSE = 'Unable to parse ship update response: ';
+    @TestVisible private static final String ERROR_MSG_BAD_MAP = 'Unable to map ship updates to staging record(s): ';
+    @TestVisible private static final String ERROR_MSG_BAD_INSERT = 'Unable to insert staging record(s): ';
+    @TestVisible private static final String ERROR_MSG_FLEET_INFO_RUNNING = 'Fleet Info job already running';
+
+    
+    public iHASCOLmsRestOutbound() {
+        getGeneralSettings();
+    }
+    
+    public iHASCOLmsRestOutbound(Boolean autoProcessOverride) {
+        
+        getGeneralSettings();
+        this.autoProcess = autoProcessOverride;
+    }
+    
+    
+    private void getGeneralSettings() {   
+        iHASCOLms__mdt settings = iHASCOLms__mdt.getInstance('Test');
+        this.settings = IMSettings__c.getOrgDefaults();
+        this.Endpoint = settings.URL__c;
+        this.bearerToken = settings.BearerToken__c;
+    }
+    
+    private HttpRequest setupCall() {
+        
+        Blob unpw = Blob.valueOf(this.fleetInfoUsername + ':' + this.fleetInfoPassword);
+        this.authorizationHeader += (EncodingUtil.base64Encode(unpw));
+        
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint(this.fleetInfoEndpoint);
+        req.setMethod('GET');
+        req.setHeader('Authorization', authorizationHeader);
+        req.setTimeout(TIMEOUT_MS);
+        
+        return req;
+    }
+    
+    public void getFleetInformation() {
+        
+        List<Database.SaveResult> results;
+        HttpRequest req;        
+        
+        if (successSofar) req = setupCall();
+        if (successSofar) sendFleetInfoRequest(req);
+        if (successSofar) parseFleetInfoResponse(res);
+        if (successSofar) populateStagingRecs();
+        if (successSofar) results = Database.insert(this.stagingRecs, false);
+        if (successSofar) processResults(results);   
+        if (successSofar) processStagingTable();        
+    }
+    
+    @future(callout=true)
+    public static void getFleetInformationFuture() {
+        
+        IMRestServiceOutbound service = new IMRestServiceOutbound();
+        service.getFleetInformation();
+    }
+    
+    private void sendFleetInfoRequest(HttpRequest req) {
+        
+        Http http = new Http();
+                
+        try {
+            
+            this.dataTimestamp = Datetime.now();
+            res = http.send(req);
+        }
+        catch (Exception e) {
+            
+            ApplicationLog__c log = logger.newError('Incident Management')
+                                          .setErrorValues(e.getMessage(),
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'getFleetInformation',
+                                                          2,
+                                                          e.getStackTraceString());
+            insert log;
+            successSofar = false;
+        }
+    }
+    
+    private void parseFleetInfoResponse(HTTPResponse res) {
+        
+        try {
+            
+            if (res.getStatusCode() == 200) {
+                
+                shipUpdates = (List<WebserviceShip>)JSON.deserialize(res.getBody(), List<WebserviceShip>.class);
+            }
+            else {
+                
+                String message = ERROR_MSG_HTTP + dataTimestamp.format() + ' >>> ' + 
+                                 res.getStatusCode() + ' >>> ' + res.getStatus();
+                
+                ApplicationLog__c log = logger.newError('Incident Management')
+                                              .setErrorValues(message,
+                                                              IMRestServiceOutbound.class.getName(),
+                                                              'parseFleetInfoResponse',
+                                                              2,
+                                                              '');
+                insert log;
+                successSofar = false;
+            }
+        }
+        catch (Exception e) {
+            
+            String message = ERROR_MSG_BAD_PARSE + e.getMessage();
+                
+            ApplicationLog__c log = logger.newError('Incident Management')
+                                          .setErrorValues(message,
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'parseFleetInfoResponse',
+                                                          2,
+                                                          e.getStackTraceString());
+            insert log;
+            successSofar = false;
+        }
+    }
+    
+    private void populateStagingRecs() {
+        
+        String error = '';
+        Integer errorCount = 0;
+        
+        for (WebserviceShip ws : this.shipUpdates) {
+            
+            try {
+                
+                ShipStaging__c rec = new ShipStaging__c();
+                rec.CallSign__c = ws.callSign;
+                rec.DataTimestamp__c = dataTimestamp;
+                rec.IsDeregistered__c = (ws.deregistered? IMConstants.PL_BOOLEAN_Y : IMConstants.PL_BOOLEAN_N);
+                rec.MMSI__c = ws.mmsi;
+                rec.Name = ws.shipName;
+                rec.NoOfPos24h__c = ws.twentyFourHourPositions;
+                rec.NoOfPos36h__c = ws.thirtySixHourPositions;
+                rec.RegistrationTimestamp__c = ws.registeredTimestamp;
+                rec.ReportingRate__c = Integer.valueOf(ws.reportingInterval);
+                rec.ReportingRateMultiplexed__c = Integer.valueOf(ws.multiplexedReportingRate);
+                rec.ShipIMO__c = ws.imo;
+                rec.Status__c = IMConstants.STAGING_STATUS_NEW;
+                rec.LastLatitude__c = ws.lastLatitude;
+                rec.LastLongitude__c = ws.lastLongitude;
+                rec.LastPositionDate__c = ws.lastDate;
+                this.stagingRecs.add(rec);
+            }
+            catch (Exception e) {
+                
+                errorCount++;
+                error += (String.valueOf(errorCount) + ': ' + e.getMessage() + ' --- ');
+            }
+        }
+        
+        this.shipUpdates.clear();
+        
+        if (errorCount > 0) {
+            
+            error = (error.length() > MAX_ERROR_LENGTH? error.substring(0, MAX_ERROR_LENGTH) : error);
+            
+            ApplicationLog__c log = logger.newError('Incident Management')
+                                          .setErrorValues(ERROR_MSG_BAD_MAP + error,
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'populateStagingRecs',
+                                                          2,
+                                                          '');
+            insert log;
+        }
+    }
+    
+    private void processResults(List<Database.SaveResult> results) {
+        
+        String error = '';
+        Integer errorCount = 0;
+        
+        for (Database.SaveResult sr : results) {
+            
+            if (!sr.isSuccess()) {
+                
+                errorCount++;
+                error += (String.valueOf(errorCount)  + ': ');
+                          
+                for (Database.Error e : sr.getErrors()) {
+                    
+                    error += (e.getMessage() + ', ');
+                }
+                
+                error += ' --- ';
+            }
+        }
+        
+        if (errorCount > 0) {
+            
+            error = (error.length() > MAX_ERROR_LENGTH? error.substring(0, MAX_ERROR_LENGTH) : error);
+            
+            ApplicationLog__c log = logger.newError('Incident Management')
+                                          .setErrorValues(ERROR_MSG_BAD_INSERT + error,
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'populateStagingRecs',
+                                                          2,
+                                                          '');
+            insert log;
+        }
+    }
+    
+    private void processStagingTable() {
+        
+        if (autoProcess) System.enqueueJob(new IMProcessShipStaging());
+    }
+    
+    public void execute(SchedulableContext SC) {
+    
+        IMRestServiceOutbound.getFleetInformationFuture();
+    }
+    
+    public class WebserviceShip {
+        
+        public String shipName;
+        public String imo;
+        public String callSign;
+        public String mmsi;
+        public Boolean deregistered;
+        public String reportingInterval;
+        public String multiplexedReportingRate;
+        public String registeredTimestamp;
+        public Integer twentyFourHourPositions;
+        public Integer thirtySixHourPositions;
+        public Decimal lastLatitude;
+        public Decimal lastLongitude;
+        public String lastDate;
+    }
+    
+    private class iHASCOLmsRestOutboundException extends Exception {}
+}

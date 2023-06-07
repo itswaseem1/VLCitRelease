@@ -1,0 +1,98 @@
+<apex:page showHeader="false" sidebar="false" cache="false" contentType="text/xml" controller="qms_ContractProductPrices">
+  
+    <block text-align="left" color="#67B9E8" font-size="20pt" font-weight="bold" margin-top="20pt">
+        Details of Services
+    </block>
+    <!--block > 
+<external-graphic src="https://citation-qms--uat--c.documentforce.com/servlet/servlet.FileDownload?file=0153G000000FcYl"  content-height="scale-to-fit" height="1.5in"  content-width="2.00in" scaling="non-uniform"/>
+</block-->
+    <!--block >
+   <img src="{!$Resource.QMS_CPQ_Logo}" width="25%"/>
+  </block-->
+    
+    <block>&nbsp;</block>
+        <block color="#5e5e5d"> 
+            <apex:repeat value="{!parentWQLIList}" var="listQLI">
+                
+            <table width="100%" border-color="#000000" border-width="1px" border-style="solid">
+                               
+                <table-header>
+                   <table-row >
+                       <table-cell background-color="#67b9e8" color="#ffffff" font-size="15pt" border-top="1px solid black" border-bottom="1px solid black" border-left="1px solid black" width="80pt" margin="0pt" padding="4pt" padding-top="8pt" ><block>Service summary</block></table-cell>
+                       <table-cell background-color="#67b9e8"><block></block></table-cell>
+                       <table-cell background-color="#67b9e8"><block></block></table-cell> 
+                       <table-cell background-color="#67b9e8"><block></block></table-cell> 
+                       <table-cell background-color="#67b9e8"><block></block></table-cell>
+                   </table-row>
+                    <table-row font-size="8pt" text-align="left" color="#575756" background-color="#EAF4FB" font-weight="800" >
+                        <table-cell border="1px solid black" border-top ="1px solid black" width="160pt" margin="0pt" padding="4pt" padding-top="8pt"><block>Description</block></table-cell>
+                        <table-cell border="1px solid black" width="120pt" margin="0pt" padding="4pt" padding-top="8pt"><block>Customer Unit Price</block></table-cell>
+                        <table-cell border="1px solid black" width="90pt" margin="0pt" padding="4pt" padding-top="8pt"><block>Billing Frequency</block></table-cell>
+                        <table-cell border="1px solid black" width="120pt" margin="0pt" padding="4pt" padding-top="8pt"><block>Regular Payment Amount</block></table-cell>
+                    </table-row>
+                </table-header>
+                <table-body> 
+                    <apex:repeat var="line" value="{!listQLI}">
+                        <table-row   font-size="8pt" text-align="left" color="#5e5e5d" background-color="FFFFFF">
+                       
+                            <table-cell   border="1px solid black" border-top ="0px"     width="210pt" margin="0pt" padding="4pt" padding-top="8pt"><block>{!HTMLENCODE(line.qli.SBQQ__ProductName__c)}</block></table-cell>
+                            <apex:outputText rendered="{!line.totalCCSAPrice ==NULL}">
+                            <table-cell border="1px solid black" width="105pt" margin="0pt" padding="2pt" padding-top="8pt" ><block><apex:outputText value="£{!line.qli.SBQQ__CustomerPrice__c}" rendered="{! line.qli.SBQQ__CustomerPrice__c > 0}"/> </block></table-cell>
+                            </apex:outputText>
+                            <apex:outputText rendered="{!line.totalCCSAPrice !=NULL}">
+                            <table-cell border="1px solid black" width="105pt" margin="0pt" padding="2pt" padding-top="8pt" ><block><apex:outputText value="£{!line.totalCCSAPrice}" rendered="{!line.totalCCSAPrice > 0}"/> </block></table-cell>
+                            </apex:outputText>
+                            <table-cell border="1px solid black" width="90pt" margin="0pt" padding="4pt" padding-top="8pt" ><block><apex:outputText Value="{!line.qli.Billing_Frequency__c}"  rendered="{! line.qli.Billing_Frequency__c !=NULL}"/></block></table-cell>
+                             <apex:outputText rendered="{!line.totalCCSARegularpayment !=NULL}">
+                            <table-cell border="1px solid black" width="120pt" margin="0pt" padding="4pt" padding-top="8pt"  ><block><apex:outputText value="£{!line.totalCCSARegularpayment}" rendered="{! line.totalCCSARegularpayment !=NULL}"/> </block></table-cell>
+                            </apex:outputText>
+                        </table-row>
+                        
+                </apex:repeat>
+                    <!--table-row  font-size="12pt" text-align="right" color="#5e5e5d" background-color="FFFFFF" font-weight= "bold">
+                        <table-cell border="1px solid black" border-right="0px solid black" width="120pt" margin="0pt" padding="4pt" padding-top="8pt"><block>&nbsp;</block></table-cell>
+                        <table-cell border="1px solid black" border-left="0px solid black" border-right="0px solid black" width="120pt" margin="0pt" padding="4pt" padding-top="8pt"><block>&nbsp;</block></table-cell>
+                        <table-cell border="0px solid black" width="420pt" margin="0pt" padding="2pt" padding-top="8pt"><block><apex:outputText value="{!listQLI[0].Details }"/></block></table-cell>
+                        
+                    </table-row-->
+                    
+                       <!--table-row font-size="8pt">
+                            <table-cell number-columns-spanned="6" border="0px solid black" width="2000pt" margin="0pt" padding="3pt" padding-top="3pt"> <block><apex:outputText value="{!listQLI[0].serviceDetails}" rendered="{!listQLI[0].serviceDetails !=NULL}"/></block></table-cell>
+                        </table-row-->
+                    <!--apex:outputText rendered="{!listQLI[0].serviceDetails !=NULL}">
+
+                        <table-row border-top ="0px solid black">
+                            <table-cell margin="0pt" padding="5pt" width="500px" number-columns-spanned="4" >
+                                <block font-size="9pt">
+                                    <apex:outputText >
+                                        {!listQLI[0].serviceDetails}
+                                        
+                                    </apex:outputText> 
+                                </block>
+                            </table-cell>
+                        </table-row>
+                             
+                    </apex:outputText-->                 
+                </table-body>
+            </table >
+                 
+               <apex:outputText rendered="{!listQLI[0].serviceDetails !=NULL}">
+                                <block margin-top="40px" font-size="9pt">
+                                    <apex:outputText >
+                                      {!listQLI[0].serviceDetails}
+                                    </apex:outputText> 
+                                </block>
+                    </apex:outputText>
+            <block> 
+                &nbsp; 
+            </block>
+            <table margin-bottom="30px">
+            	<table-body>
+                    <table-row padding-bottom="15px" >
+                        <table-cell border-bottom="2px dotted" border-color="#67B9E8"><block></block></table-cell>
+                    </table-row>
+                </table-body>
+            </table>     
+            </apex:repeat>
+        </block>
+</apex:page>

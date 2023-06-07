@@ -1,0 +1,714 @@
+/***********************************************************
+* bg_Contract_Helper
+*
+* Method to set the Contract on CPQ Quotes
+*
+* Author: Kash Hussain (BrightGen)
+* Created Date: 24/08/2017
+************************************************************/
+public with sharing class bg_Contract_Helper
+{
+    // START SDT-4706
+     public static Id qmsContractRecordTypeId = Schema.SObjectType.Contract.getRecordTypeInfosByName().get('QMS').getRecordTypeId();
+
+    // START SDT-4706 
+	 public static Id iHASCOContractRecordTypeId = Schema.SObjectType.Contract.getRecordTypeInfosByName().get('iHASCO Standard Contract').getRecordTypeId();
+		
+     public static void runPartnerAccount(List<Contract> newContractList) {
+    
+        Id citationPartnershipRecordTypeId = Schema.SObjectType.Contract.getRecordTypeInfosByName().get('Citation Partnership').getRecordTypeId();
+        List<Id> accList = new List<Id>();
+        List<Account> accountUpdateList = new List<Account>();
+        Boolean temp = false;
+        
+        for(Contract objContract : newContractList) {
+            accList.add(objContract.AccountId);
+        }
+        
+        for(Account objAccount : [Select Id, Is_Active_Partner__c, (Select Id, RecordtypeId, Status, AccountId, Account.Is_Active_Partner__c from Contracts where RecordtypeId =: citationPartnershipRecordTypeId  and isDeleted = false) from Account where Id in: accList]) {
+            temp = false;
+            for(Contract objContract : objAccount.Contracts) {
+                if(objContract.Status == 'Active' || objContract.Status == 'Activated') {
+                    temp = true; 
+                    break;
+                }
+            } 
+            
+            objAccount.Is_Active_Partner__c = temp;
+            accountUpdateList.add(objAccount);
+        }
+        
+        if(accountUpdateList.size() > 0) {
+            Database.update (accountUpdateList, false);
+        }
+    }
+    // STOP SDT-4706
+    
+    /*
+        Method to check if the Contract has is related to a Quote and set this on the Quote.
+    */
+    public static void setContractOnQuote(List<Contract> newContracts)
+    {
+        List<SBQQ__Quote__c> quoteList = new List<SBQQ__Quote__c>();
+        Id parternshipRecordTypeId=schema.SObjectType.Contract.getRecordTypeInfosByName(). get('Citation Partnership'). getRecordTypeId();
+        Id ihascoRecordTypeId=schema.SObjectType.Contract.getRecordTypeInfosByName(). get('iHASCO Standard Contract'). getRecordTypeId();
+        Id qmsRecordTypeId=schema.SObjectType.Contract.getRecordTypeInfosByName(). get('QMS'). getRecordTypeId();
+        List<Contract> relevantContracts = new List<Contract>();
+        Map<String,Id> contractTemplateMap = new Map<String,Id>();
+        for(SBQQ__QuoteTemplate__c objQuoteTemp: [SELECT Id,Name FROM SBQQ__QuoteTemplate__c WHERE Business_Type__c = 'CitationBDM' AND Template_Type__c = 'Contract']){
+            contractTemplateMap.put(objQuoteTemp.Name, objQuoteTemp.Id);
+        }
+        for (Contract cont : newContracts)
+        {
+            if (cont.SBQQ__Quote__c != null)
+            {
+                SBQQ__Quote__c updateQuote = new SBQQ__Quote__c();
+                updateQuote.Id = cont.SBQQ__Quote__c;
+                updateQuote.Contract__c = cont.Id;
+                if(cont.recordTypeId==parternshipRecordTypeId && contractTemplateMap.containsKey('Partnerships Standard Contract')){
+                    updateQuote.SBQQ__QuoteTemplateId__c = contractTemplateMap.get('Partnerships Standard Contract'); 
+                }else if(cont.recordTypeId!=ihascoRecordTypeId && cont.recordTypeId!=qmsRecordTypeId && contractTemplateMap.containsKey('Citation Standard Contract')){
+                    updateQuote.SBQQ__QuoteTemplateId__c = contractTemplateMap.get('Citation Standard Contract'); 
+                }
+                quoteList.add(updateQuote);
+                if(cont.RecordTypeID != iHASCOContractRecordTypeId){
+                    relevantContracts.add(cont);
+                }
+            }
+        }
+
+        if(!relevantContracts.isEmpty())
+        {
+            setupContractRecord(relevantContracts);
+        }
+
+        if (!quoteList.isEmpty())
+        {
+            update quoteList;
+        }
+    }
+
+    /*
+        Method to check if the Contract has been reassigned to a different Quote.
+    */
+    public static void setContractOnQuote(List<Contract> newContracts, Map<Id, Contract> oldContracts)
+    {
+        List<Contract> relevantContracts = new List<Contract>();
+
+        for (Contract cont : newContracts)
+        {
+            system.debug('***Contract ID**: ' + cont.Id);
+            system.debug('***oldContracts**: ' + oldContracts);
+            Contract oldCont = oldContracts.get(cont.Id);
+
+            if ((cont.SBQQ__Quote__c != null && cont.SBQQ__Quote__c != oldCont.SBQQ__Quote__c) || cont.RecordTypeId != oldCont.RecordTypeId )
+            {
+                relevantContracts.add(cont);
+            }
+        }
+
+        if (!relevantContracts.isEmpty())
+        {
+            setContractOnQuote(relevantContracts);
+        }
+    }
+
+    /*
+        Method to set the Number of Sites on the Account when Contract is created
+    */
+    public static void setSitesOnParentContract(List<Contract> newContracts)
+    {
+        List<Account> accountsToUpdate = new List<Account>();
+
+        for (Contract cont : newContracts)
+        {
+            if (cont.SBQQ__Quote__c != null)
+            {
+                Account acc = new Account();
+                acc.Id = cont.AccountId;
+                acc.Sites__c = (cont.Number_of_Standard_Sites__c + cont.Number_of_Complex_Sites__c);
+
+                accountsToUpdate.add(acc);
+            }
+        }
+
+        if (!accountsToUpdate.isEmpty())
+        {
+            update accountsToUpdate;
+        }
+    }
+    
+    /* Method to call Account Helper to update the segmentation value */
+    
+    public static void checkAccountToUpdateCall(map<id,contract> newObjectMap,map<id,contract> oldObjectMap){
+        set<id> accountid = new set<id>();
+        list<contract> ctrNewList = new list<contract>();
+
+        if(newObjectMap == null){
+            for(contract ctr: oldObjectMap.values()){
+                if(ctr.status == 'Active' || ctr.status == 'In Approval Process' || ctr.status == 'Pending Start'){
+                    accountid.add(ctr.accountid);
+                    ctrNewList.add(ctr);
+                }
+            }
+        }
+        else{
+            for(contract ctr: newObjectMap.values()){
+                if(ctr.RecordTypeId != iHASCOContractRecordTypeId){
+                if(ctr.status != oldObjectMap.get(ctr.id).status){
+                    accountid.add(ctr.accountid);
+                    ctrNewList.add(ctr);
+                }
+            }
+        }
+        }
+        
+        if(accountid.size()>0){
+            AccountHelper tra = new AccountHelper();
+            tra.commonUpdateMet(accountid,ctrNewList);
+        }
+    }
+
+    /*
+        Method to set the Agreement Type on the Contract Record
+    */
+    public static void setupContractRecord(List<Contract> relevantContracts)
+    {
+        List<Contract> contractsToUpdate = new List<Contract>();
+
+        for (Contract cont : relevantContracts)
+        {
+            Contract newContract = new Contract();
+            newContract.Id = cont.Id;
+            newContract.Renewal_Type__c = cont.Quote_Renewal_Type__c;
+            newContract.Agreement_Type__c = 'EchoSign';
+            
+            
+            /* SMcC 1/9/17 adding other contract required fields from quote*/
+        
+            SBQQ__Quote__c q = [SELECT Max_Term__c,Quotelines_Max_Term__c,Initial_Payment__c,  SBQQ__BillingFrequency__c,  Initial_Payment_Date__c,  Preferred_Payment_Date__c, Second_Signatory_Required__c, SBQQ__PrimaryContact__c
+                                FROM SBQQ__Quote__c
+                                WHERE Id = :cont.SBQQ__Quote__c 
+                                ];
+            
+            newContract.Initial_Payment2__c = q.Initial_Payment__c;
+            newContract.Payment_Period__c = q.SBQQ__BillingFrequency__c;
+            newContract.Initial_Payment_Date__c  = q.Initial_Payment_Date__c;
+            newContract.Preferred_Payment_Date__c  = q.Preferred_Payment_Date__c;
+            newContract.Second_Signatory_Required__c = q.Second_Signatory_Required__c;
+            newContract.customerSignedId = q.SBQQ__PrimaryContact__c ;
+            
+            if(cont.RecordTypeID != qmsContractRecordTypeId && (cont.RecordTypeID != iHASCOContractRecordTypeId)){
+            newContract.ContractTerm = integer.valueof(q.Quotelines_Max_Term__c) ;
+            }
+            /* SMcC End*/
+                        
+            contractsToUpdate.add(newContract);
+        }
+
+        if(!contractsToUpdate.isEmpty())
+        {
+            update contractsToUpdate;
+        }
+    }
+
+  /**
+    * @author Raghunath Utpala
+    * @date Sep 3rd 2019
+    * @description fired on Contract creation 
+    *  This function automates the billing contract creation on E-Commerce Contract insert.
+    * @return void
+    * @param newcontracts: list of new E- Commerece Contracts
+    */
+
+    public static void createBillingContracts(List<Contract> newcontracts){
+        if(AvoidRecursion.contractActivate_isFirstRun()){
+            List<ffbc__contract__c> billingContracts=new List<ffbc__contract__c>();
+            List<ffbc__ContractLineItem__c> billingContractLines=new List<ffbc__ContractLineItem__c>();
+            List<Product2> products=new List<Product2>();
+            List<ffbc__SoftDate__c> billingTerm=new List<ffbc__SoftDate__c>();
+            billingTerm=[SELECT Id,Name FROM ffbc__SoftDate__c WHERE Name='Monthly' limit 1];
+            products=[SELECT Id FROM Product2 WHERE Name='Atlas UpSkill' and ProductCode='AUS' and IsActive=true limit 1];
+            Id atlasPId;
+            if(!products.isEmpty()){
+                atlasPId=products[0].Id;
+            }
+            Savepoint sp = Database.setSavepoint();
+            try{
+                Integer focMonths;
+                Decimal subInitialPay;
+                map<id,contract> mapConSubscription = new map<id,contract>([select Id,AccountId,StartDate,Initial_Payment_Date__c,EndDate,ContractTerm,Contract_Value__c,(select Id,FOC_Months__c,Term_Type__c,Initial_Payment__c,SBQQ__ProductId__c,SBQQ__Quantity__c,Billing_Type__c   from SBQQ__Subscriptions__r) from Contract where Id IN :newcontracts]);
+                for(Contract c:mapConSubscription.values()){
+                    if(c.SBQQ__Subscriptions__r.size()>0 && c.SBQQ__Subscriptions__r[0].Initial_Payment__c!=null){
+                        subInitialPay = c.SBQQ__Subscriptions__r[0].Initial_Payment__c;
+                    }
+                    ffbc__Contract__c bc = new ffbc__Contract__c();
+                    bc.ffbc__Account__c=c.AccountId;
+                    bc.ffbc__Company__c=System.Label.Citation_Company;
+                    bc.Contract_Type__c = 'New';
+                    bc.ffbc__StartDate__c=c.StartDate;
+                    bc.ffbc__FirstBillDate__c=c.Initial_Payment_Date__c;
+                    bc.CurrencyIsoCode='GBP';
+                    //bc.ffbc__EndDate__c=bc.ffbc__FirstBillDate__c!=null?bc.ffbc__FirstBillDate__c.addMonths(c.ContractTerm).addDays(-1):c.EndDate;
+                    if(c.SBQQ__Subscriptions__r.size()>0){
+                        if(c.SBQQ__Subscriptions__r[0].FOC_Months__c!=null){
+                            focMonths=(Integer)c.SBQQ__Subscriptions__r[0].FOC_Months__c;
+                        }
+                        if(c.SBQQ__Subscriptions__r[0].Term_Type__c!=null 
+                            && c.SBQQ__Subscriptions__r[0].FOC_Months__c!=null 
+                            && c.SBQQ__Subscriptions__r[0].Term_Type__c=='Co-term'
+                            && c.SBQQ__Subscriptions__r[0].FOC_Months__c>0){
+                                bc.ffbc__EndDate__c=c.EndDate;
+                            }
+                        else if(c.SBQQ__Subscriptions__r[0].Term_Type__c!=null 
+                            && c.SBQQ__Subscriptions__r[0].FOC_Months__c!=null 
+                            && (c.SBQQ__Subscriptions__r[0].Term_Type__c=='Co-term' || c.SBQQ__Subscriptions__r[0].Term_Type__c=='12 month')
+                            && c.SBQQ__Subscriptions__r[0].FOC_Months__c==0){
+                                bc.ffbc__EndDate__c=bc.ffbc__FirstBillDate__c.addMonths(c.ContractTerm).addDays(-1);
+                            }
+                    }
+                    else{
+                        bc.ffbc__EndDate__c=bc.ffbc__FirstBillDate__c!=null?bc.ffbc__FirstBillDate__c.addMonths(c.ContractTerm).addDays(-1):c.EndDate;
+                    }
+                    bc.ffbc__Status__c='Draft';
+                    bc.SF_Contract__c=c.Id;
+                    bc.ffbc__TotalContractValue__c=c.Contract_Value__c;
+                    billingContracts.add(bc);
+                    System.debug('billing Contracts are--'+billingContracts);
+                }
+                if(!billingContracts.isEmpty()){
+                    insert billingContracts;
+                }
+                for(ffbc__Contract__c billingContract:[SELECT Id,SF_Contract__c,SF_Contract__r.StartDate,SF_Contract__r.EndDate,SF_Contract__r.Monthly_Annual_Fee__c,SF_Contract__r.Initial_Payment_Date__c,SF_Contract__r.Contract_Value__c,ffbc__StartDate__c,ffbc__EndDate__c,SF_Contract__r.ContractTerm FROM ffbc__Contract__c WHERE ID IN :billingContracts]){
+                    for(SBQQ__Subscription__c cS: mapConSubscription.get(billingContract.SF_Contract__c).SBQQ__Subscriptions__r){
+                        ffbc__ContractLineItem__c cline=new ffbc__ContractLineItem__c();
+                        cline.ffbc__Contract__c=billingContract.Id;
+                        cline.ffbc__ProductService__c=cs.SBQQ__ProductId__c;
+                        cline.Service_Start_Date__c=billingContract.SF_Contract__r.StartDate;
+                        cline.Service_End_Date__c=billingContract.SF_Contract__r.EndDate;
+                        cline.ffbc__BillingTerm__c=billingTerm[0].Id;
+                        //cline.ffbc__UnitPrice__c=billingContract.SF_Contract__r.Monthly_Annual_Fee__c;
+                        cline.ffbc__UnitPrice__c=cs.Initial_Payment__c;
+                        cline.ffbc__BillingType__c='Recurring Fixed';
+                        cline.ffbc__Quantity__c=cs.SBQQ__Quantity__c;
+                        cline.CurrencyIsoCode='GBP';
+                        cline.ffbc__FirstBillDate__c=cline.ffbc__StartDate__c=billingContract.SF_Contract__r.Initial_Payment_Date__c;
+                        cline.ffbc__EndDate__c=focMonths!=null?cline.ffbc__FirstBillDate__c.addMonths(billingContract.SF_Contract__r.ContractTerm-focMonths).addDays(-1):cline.ffbc__FirstBillDate__c.addMonths(billingContract.SF_Contract__r.ContractTerm).addDays(-1);
+                        //cline.ffbc__EndDate__c= cline.ffbc__FirstBillDate__c!=null? cline.ffbc__FirstBillDate__c.addMonths(billingContract.SF_Contract__r.ContractTerm).addDays(-1):billingContract.ffbc__EndDate__c;
+                        cline.Original_Contract_Value__c=billingContract.SF_Contract__r.Contract_Value__c;
+                        billingContractLines.add(cline);
+                    }
+                        
+                }
+                if(!billingContractLines.isEmpty()){
+                    insert billingContractLines;
+                    if(!Test.isRunningTest()){
+                        TriggerffbcContractHandler.createBillingSchedules(billingContracts);
+                    }
+                }
+            }
+            catch(Exception e){
+                System.debug('Error occured is'+e.getMessage() +'line number'+e.getLineNumber());
+                GA_Event_Log__c log=new GA_Event_Log__c();
+                log.CurrencyIsoCode='GBP';
+                log.Event_Type__c=e.getTypeName();
+                log.Exception_Details__c=e.getStackTraceString();
+                log.Response__c='Error occured is'+e.getMessage() +' line number'+e.getLineNumber();
+                insert log;
+                Database.rollback(sp);
+            }
+        }
+    }
+  /**
+    * @author Raghunath Utpala
+    * @date Sep 19th 2019
+    * @description fired on Contract deletion 
+    *  This function counts number of active contracts and updates account.
+    * @return void
+    * @param newcontracts: list of contracts deleted or undeleted.
+    */
+	public static void updateCALCCitationContracts(Map<Id,Contract> oldMap,Map<Id,Contract> newMap){
+        Set<Id> AccountIds=new Set<Id>();
+        set<Id> recordtypeIds=new set<Id>();
+        Map<String, Schema.RecordTypeInfo> recordTypes = Schema.SObjectType.Contract.getRecordTypeInfosByName();
+      if(recordTypes!=null){
+        recordtypeIds.add(recordTypes.get('Client Relations Contract Record Type').getRecordTypeId());                   
+        recordtypeIds.add(recordTypes.get('Client Relations Renewal Contract').getRecordTypeId());  
+        recordtypeIds.add(recordTypes.get('E-Commerce').getRecordTypeId());                 
+        recordtypeIds.add(recordTypes.get('One Off Sale').getRecordTypeId());                       
+        recordtypeIds.add(recordTypes.get('Small Business Package').getRecordTypeId());                   
+        recordtypeIds.add(recordTypes.get('Standard Contract').getRecordTypeId());
+      }
+        //List<Account> acctsToUpdate=new List<Account>();
+        try{
+          if(newMap==null){
+                for(Contract c:oldMap.values()){
+                    if(c.AccountId!=null){
+                        AccountIds.add(c.AccountId);    
+                    }
+                }
+            }
+            else{
+                for(Contract c:newMap.values()){
+                    if(c.AccountId!=null){
+                        AccountIds.add(c.AccountId);    
+                    } 
+                }
+            }
+            List<AggregateResult> agrSet=new List<AggregateResult>();
+          //  Map<Id,Integer> mapCount=new Map<Id,Integer>();
+          Map<Id, Account> mapAcc=new Map<Id,Account>();
+            if(newMap==null){
+                agrSet=[SELECT Count(Id),AccountId from Contract where Status='Active' and RecordtypeId IN :recordtypeIds and AccountId IN :AccountIds and ID NOT IN :oldMap.values() group by AccountId];
+            }
+            else {
+                agrSet=[SELECT Count(Id),AccountId from Contract where Status='Active' and RecordtypeId IN :recordtypeIds and AccountId IN :AccountIds group by AccountId];
+            }
+            for(AggregateResult agr:agrSet){
+                Integer count=(Integer)agr.get('expr0');
+                Id accId=(Id)agr.get('AccountId');
+                Account acc=new Account();
+                acc.id=accId;
+                acc.CALC_Citation_Contract__c=count;
+                 mapAcc.put(accId,acc);
+                //mapCount.put(accId,count);
+            }
+            if(agrSet.isEmpty()){
+                for(Id acct:AccountIds){
+                Account acc=new Account();
+                acc.id=acct;
+                acc.CALC_Citation_Contract__c=0;   
+                    mapAcc.put(acct,acc);
+                }
+            }
+           /* for(Account acct:[SELECT Id,CALC_Citation_Contract__c FROM Account WHERE Id IN :AccountIds]){
+                if(mapCount.containsKey(acct.Id) && mapCount.get(acct.Id)!=null){                  
+                    acct.CALC_Citation_Contract__c=mapCount.get(acct.Id);
+                    acctsToUpdate.add(acct);
+                }
+            }
+            if(!acctsToUpdate.isEmpty()){
+                update acctsToUpdate;
+            }*/
+            
+            if(mapAcc!=null){
+                update mapAcc.values();               
+            }
+        }
+        catch(Exception e){
+            System.debug('Error occured is'+e.getMessage() +' line number'+e.getLineNumber());
+        }
+    }
+   public static void updateCALCCitationContractsNum(Map<Id,Contract> oldMap,Map<Id,Contract> newMap){       
+        Set<Id> AccountIds=new Set<Id>();
+        set<Id> recordtypeIds=new set<Id>();
+        Map<String, Schema.RecordTypeInfo> recordTypes = Schema.SObjectType.Contract.getRecordTypeInfosByName();
+      if(recordTypes!=null){
+        recordtypeIds.add(recordTypes.get('Client Relations Contract Record Type').getRecordTypeId());                   
+        recordtypeIds.add(recordTypes.get('Client Relations Renewal Contract').getRecordTypeId());  
+        recordtypeIds.add(recordTypes.get('E-Commerce').getRecordTypeId());                 
+        recordtypeIds.add(recordTypes.get('One Off Sale').getRecordTypeId());                       
+        recordtypeIds.add(recordTypes.get('Small Business Package').getRecordTypeId());                   
+        recordtypeIds.add(recordTypes.get('Standard Contract').getRecordTypeId());
+       }
+      //  List<Account> acctsToUpdate=new List<Account>();
+        try{
+            if(newMap==null){
+                for(Contract c:oldMap.values()){
+                    if(c.RecordTypeID != iHASCOContractRecordTypeId){
+                    if(c.AccountId!=null && c.Status == 'Active'){
+                        AccountIds.add(c.AccountId);    
+                    }            
+                }
+            }
+            }
+            else{
+                for(Contract c:newMap.values()){
+                    if(c.RecordTypeID != iHASCOContractRecordTypeId){
+                    if(c.AccountId!=null && c.Status == 'Active' && c.status != oldMap.get(c.id).status){
+                        AccountIds.add(c.AccountId);    
+                    }            
+                }
+            }
+            }
+            List<AggregateResult> agrSet=new List<AggregateResult>();
+           // Map<Id,Integer> mapCount=new Map<Id,Integer>();
+            Map<Id, Account> mapAcc=new Map<Id,Account>();
+            if(newMap==null){
+                agrSet=[SELECT Count(Id),AccountId from Contract where Status='Active'and RecordtypeId IN :recordtypeIds and AccountId IN :AccountIds and ID NOT IN :oldMap.values() group by AccountId];
+            }
+            else {
+                agrSet=[SELECT Count(Id),AccountId from Contract where Status='Active' and RecordtypeId IN :recordtypeIds and AccountId IN :AccountIds group by AccountId];
+            }
+            for(AggregateResult agr:agrSet){
+                Integer count=(Integer)agr.get('expr0');
+                Id accId=(Id)agr.get('AccountId');
+                Account acc=new Account();
+                acc.id=accId;
+                acc.CALC_Citation_Contract__c=count;
+                mapAcc.put(accId,acc);
+               // mapCount.put(accId,count);
+            }
+            if(agrSet.isEmpty()){
+               /* for(Account acct:[select Id from Account where Id IN :AccountIds]){
+                    mapCount.put(acct.Id,0);
+                }*/
+                for(Id acct:AccountIds){
+                Account acc=new Account();
+                acc.id=acct;
+                acc.CALC_Citation_Contract__c=0;   
+                mapAcc.put(acct,acc);
+                }
+            }
+          /*  for(Account acct:[SELECT Id,CALC_Citation_Contract__c FROM Account WHERE Id IN :AccountIds]){
+                if(mapCount.containsKey(acct.Id) && mapCount.get(acct.Id)!=null){
+                    acct.CALC_Citation_Contract__c=mapCount.get(acct.Id);
+                    acctsToUpdate.add(acct);
+                }
+            }
+            if(!acctsToUpdate.isEmpty()){
+                update acctsToUpdate;
+            }*/
+             
+            if(mapAcc!=null){
+                update mapAcc.values();               
+            }
+        }
+        catch(Exception e){
+             System.debug('Error occured is'+e.getMessage() +' line number'+e.getLineNumber());
+        }
+    }
+     public static void updatePartnerAccount(List<Contract> newContractList) {
+        List<Id> accList = new List<Id>();
+        List<Account> accountUpdateList = new List<Account>();
+        Decimal hrNum ;
+        Decimal hsNum ;
+        
+        for(Contract objContract : newContractList) {
+            if(objContract.AccountId !=null){
+                accList.add(objContract.AccountId);
+            }
+        }
+        if(!accList.isEmpty()){
+            for(Account objAccount : [Select Id, Total_HR_Member_Atlas_Access_Units__c, Total_H_S_Member_Atlas_Access_Units__c,(Select Id, RecordtypeId, Status, AccountId,HR_Member_Atlas_Access_Units__c,H_S_Member_Atlas_Access_Units__c from Contracts where Recordtype.Name = 'Citation Partnership' AND (Status = 'Active' OR Status = 'Pending Start')) from Account where Id in: accList]) {
+                hrNum = 0;
+                hsNum = 0;
+                for(Contract objContract : objAccount.Contracts) { 
+                    if(objContract.HR_Member_Atlas_Access_Units__c !=null){
+                        hrNum += objContract.HR_Member_Atlas_Access_Units__c;
+                    }
+                    if(objContract.H_S_Member_Atlas_Access_Units__c !=null){
+                        hsNum +=objContract.H_S_Member_Atlas_Access_Units__c;
+                    }                
+                }
+                if(objAccount.Total_HR_Member_Atlas_Access_Units__c != hrNum || objAccount.Total_H_S_Member_Atlas_Access_Units__c !=hsNum){
+                    objAccount.Total_HR_Member_Atlas_Access_Units__c = hrNum;
+                    objAccount.Total_H_S_Member_Atlas_Access_Units__c=hsNum;			
+                    accountUpdateList.add(objAccount);
+                }
+            }        
+            if(!accountUpdateList.isEmpty()) {
+                Database.update(accountUpdateList, false);
+            }
+        }
+    }
+
+     /*
+    * @author Jahnavi Yeluri
+    * @date 24-09-2021
+    * @description This Method is used to Update Accounts Cluster Start Date with First Core Contracts Start Date 
+ 	  * and Cluster End Date with Latest Active Core Contracts End Date
+ 	  * Core Contract is a Contract with Agreement Service Field Containing any of these Values - PEL, H&S or Combined
+    * @param Set of AccountIds of Contracts
+    * @return void(returns nothing)
+    */
+    @future
+    public static void clusterDatesCalculation1(Set<Id> AccountIdsofRecords){
+        Map<Id,Account> accountsProcessed=new Map<Id,Account>();
+        //This List Consists of Values of Agreement Service which makes a contract core contract
+        List<String> agreementService=(System.Label.CoreContractService).split(',');
+        //Map to store all accounts with there Id as Key
+        Map<Id,Account> accountswithAllContracts=new Map<Id,Account>();
+        Map<Account,List<Contract>> accountswithCoreContracts=new Map<Account,List<Contract>>();
+        //Get all Accounts whose Ids are in AccountIdsofRecords and Populate accountswithAllContracts Map Values
+        for(Account accountwithAllContracts:[Select Id,Name,Cluster_End_Date__c,
+                                             (Select Id,Name,EndDate,StartDate,Active_Date__c,Agreement_Template_Type__c From Contracts  
+                                              ORDER BY CreatedDate) 
+                                             From Account Where Id IN :AccountIdsofRecords]){
+                                                 if(!accountswithAllContracts.containsKey(accountwithAllContracts.Id)){
+                                                     accountswithAllContracts.put(accountwithAllContracts.Id, accountwithAllContracts);
+        }
+                                                 for(Contract con:accountwithAllContracts.Contracts){
+                                                     if(agreementService.contains(con.Agreement_Template_Type__c)){
+                                                         if(accountswithCoreContracts.containsKey(accountwithAllContracts) && !accountswithCoreContracts.get(accountwithAllContracts).isEmpty()){
+                                                         	accountswithCoreContracts.get(accountwithAllContracts).add(con);
+                                                         }
+                                                         else{
+                                                             accountswithCoreContracts.put(accountwithAllContracts,new List<Contract>{con});
+                                                         }
+                                                     }
+                                                     else if(!accountswithCoreContracts.containsKey(accountwithAllContracts)){
+                                                       accountswithCoreContracts.put(accountwithAllContracts,new List<Contract>());  
+                                                     }
+                                                 }
+                                             }
+        //for each Account with Active Core Contracts Populate  ClusterEndDate
+        for(Account accountwithActiveCoreContracts:[Select Id,Name,Cluster_End_Date__c,
+                                                    (Select Id,Name,EndDate,Active_Date__c From Contracts  
+                                                     Where Agreement_Template_Type__c IN:agreementService 
+                                                     AND Status='Active' AND Active_Date__c!=null ORDER BY Active_Date__c DESC) 
+                                                    From Account Where Id IN :AccountIdsofRecords]){
+                                                        if(!accountwithActiveCoreContracts.Contracts.isEmpty()){
+                                                            accountwithActiveCoreContracts.Cluster_End_Date__c=accountwithActiveCoreContracts.Contracts[0].EndDate;
+                                                        }
+                                                        else if(accountswithAllContracts.containsKey(accountwithActiveCoreContracts.Id)){
+                                                            Account acc=accountswithAllContracts.get(accountwithActiveCoreContracts.Id);
+                                                            if(!acc.Contracts.isEmpty()){
+                                                                accountwithActiveCoreContracts.Cluster_End_Date__c=acc.Contracts[acc.Contracts.size()-1].EndDate;
+                    }
+                                                        }
+                                                        accountsProcessed.put(accountwithActiveCoreContracts.Id,accountwithActiveCoreContracts);
+                                                    }
+        //for each Account with Core Contracts Populate  ClusterStartDate
+        for(Account accountwithCoreContracts:accountswithCoreContracts.keySet()){
+                                                  if(!accountswithCoreContracts.get(accountwithCoreContracts).isEmpty()){
+                                                      if(accountsProcessed.containsKey(accountwithCoreContracts.Id)){
+                                                          accountsProcessed.get(accountwithCoreContracts.Id).Cluster_Start_Date__c=accountswithCoreContracts.get(accountwithCoreContracts)[0].StartDate;
+                                                      }
+                                                  }
+                                                  else if(accountswithAllContracts.containsKey(accountwithCoreContracts.Id)){
+                                                      if(accountsProcessed.containsKey(accountwithCoreContracts.Id)){
+                                                          if(!accountswithAllContracts.get(accountwithCoreContracts.Id).Contracts.isEmpty()){
+                                                              accountsProcessed.get(accountwithCoreContracts.Id).Cluster_Start_Date__c=accountswithAllContracts.get(accountwithCoreContracts.Id).Contracts[0].StartDate;
+                            }
+                            }
+                    }
+        }
+        //If accountsProcessed contains elements Update accounts in accountsProcessed list
+            if(!accountsProcessed.isEmpty()){
+            Database.update(accountsProcessed.values(),false);
+            }
+    }
+    /*
+    * @author Jahnavi Yeluri
+    * @date 24-09-2021
+    * @description This Method is used to pass Set of AccountIds to clusterDatesCalculation1
+    * @param List of Contracts,Map of Old Contracts,String
+    * @return void(returns nothing)
+    */
+    public static void clusterDatesCalculationHelper(List<Contract> ContractRecords,Map<Id,Contract> oldMap,String OperationPerformed){
+        //Set of Account Ids of Contracts
+        Set<Id> AccountIdsofRecords=new Set<Id>();
+        for(Contract contractRecord:ContractRecords){
+            if((OperationPerformed=='Insert') || (contractRecord.Status=='Active' && oldMap.get(contractRecord.Id).Status!='Active')|| (contractRecord.Status!='Active' && oldMap.get(contractRecord.Id).Status=='Active') || (contractRecord.Agreement_Template_Type__c!=oldMap.get(contractRecord.Id).Agreement_Template_Type__c)){
+                AccountIdsofRecords.add(contractRecord.AccountId);
+            }
+        }
+        //if AccountIdsofRecords is greater than 0 call clusterDatesCalculation1 method of bg_Contract_Helper class
+        if(!AccountIdsofRecords.isEmpty()){
+            bg_Contract_Helper.clusterDatesCalculation1(AccountIdsofRecords);
+        }
+    }
+     //SDT-7161
+     public static void createContractHistory(Map<Id, Contract> oldContractMap, List<Contract> newContractList) {
+        System.debug('createContractHistory');
+        List<Contract_Retention_History__c> contrHistoryList=new List<Contract_Retention_History__c>();
+        Set<Id> termsIdSet=new Set<Id>();
+        Map<Id, String> termsMap=new Map<Id, String>();
+        for(Contract cont: newContractList){
+            if(cont.Ts_Cs_Version__c !=null){
+                termsIdSet.add(cont.Ts_Cs_Version__c);
+            }
+        }
+        for(Contract cont1: oldContractMap.values()){
+            if(cont1.Ts_Cs_Version__c !=null){
+                termsIdSet.add(cont1.Ts_Cs_Version__c);
+            }
+        }
+        
+        for(Terms_and_Conditions__c term:[Select id,Name From Terms_and_Conditions__c where id=:termsIdSet]){
+            termsMap.put(term.Id,term.Name);
+        }
+        
+        for(Contract contr: newContractList){ 
+            String aName='';
+            if(contr.Ts_Cs_Version__c !=oldContractMap.get(contr.Id).Ts_Cs_Version__c){
+                aName='Changed Current Ts and Cs Version from '+termsMap.get(oldContractMap.get(contr.Id).Ts_Cs_Version__c)+' to ' +termsMap.get(contr.Ts_Cs_Version__c);                
+                contrHistoryList.add(contractRetHistory(contr.id,aName,termsMap.get(contr.Ts_Cs_Version__c),termsMap.get(oldContractMap.get(contr.Id).Ts_Cs_Version__c),contr.Ts_Cs_Version__c,oldContractMap.get(contr.Id).Ts_Cs_Version__c));
+            }
+            if(contr.Current_Ts_and_Cs_Effective_Date__c !=oldContractMap.get(contr.Id).Current_Ts_and_Cs_Effective_Date__c){
+                aName='Changed Current Ts and Cs Effective Date from ' +String.valueOf(oldContractMap.get(contr.Id).Current_Ts_and_Cs_Effective_Date__c)+' to ' +String.valueOf(contr.Current_Ts_and_Cs_Effective_Date__c);
+                contrHistoryList.add(contractRetHistory(contr.id,aName,String.valueOf(contr.Current_Ts_and_Cs_Effective_Date__c),String.valueOf(oldContractMap.get(contr.Id).Current_Ts_and_Cs_Effective_Date__c),null,null));
+            }
+        }
+        if(!contrHistoryList.isEmpty()){
+            Database.insert(contrHistoryList,false);
+        }
+        
+    }    
+    
+     public static Contract_Retention_History__c contractRetHistory(Id contid,String actionName,String newDate,String oldDate,Id newTs,id oldTs){
+        Contract_Retention_History__c crh=new Contract_Retention_History__c(); 
+        crh.Contract__c=contid;
+        crh.Action__c=actionName;
+        crh.Modified_By__c=UserInfo.getUserId();
+        crh.Modified_Date_Time__c=System.now();
+        crh.New_Value__c=newDate;
+        crh.Old_Value__c=oldDate;
+        crh.Old_Value_Ts_Cs__c=oldTs;
+        crh.New_Value_Ts_Cs__c=newTs;
+        return crh;
+    }
+    
+    public static void handleiHASCOContractUpdate(List<Contract> newContracts, Map<id,Contract> oldContractMap){
+         List<IHASCOLmsQueue.CalloutData> ContractsToLms = new List<IHASCOLmsQueue.CalloutData>();
+        for(Contract con: newContracts){
+            if(con.RecordTypeId == iHASCOContractRecordTypeId){
+                if( (con.Status == 'Active') && (oldContractMap.get(con.id).Status != 'Active') && (oldContractMap.get(con.id).Status != 'In Amendment') ){
+                    ContractsToLms.add(new IHASCOLmsQueue.CalloutData(con.id, Label.iHASCOEventContractActivated));
+                    
+                } else if((con.Status == 'Active') && (oldContractMap.get(con.id).Status == 'In Amendment') ){
+                     ContractsToLms.add(new IHASCOLmsQueue.CalloutData(con.id, Label.iHASCOEventContractAmended));
+                }
+            }
+            
+       }  
+        if(!ContractsToLms.isEmpty()){
+            iHASCOLmsQueue queue = new iHASCOLmsQueue(ContractsToLms);
+            System.enqueueJob(queue);
+        }
+    }
+    /*
+    * @date 08-08-2022
+    * @description This Method is used to create an Opportunity when ever an Contract with Legacy Migration company as Southhalls is Activated
+    * @param List of Contracts
+    * @return void(returns nothing)
+    */
+    public static void insertOpportunityRecords(List<Contract> southhallsContractList){
+        Id oppRecordTypeId=schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Renewal / Retention Opportunity - Non-Auto').getRecordTypeId();
+        List<Opportunity> oppstoInsert=new List<Opportunity>();
+        for(Contract eachContract:southhallsContractList){
+            Opportunity oppforEachContract=new Opportunity();
+            oppforEachContract.RecordTypeId=oppRecordTypeId;
+			oppforEachContract.Name=eachContract.Contract_Account_Name__c+' Southalls Atlas Internal Only Renewal';
+            oppforEachContract.Accountid=eachContract.AccountId;
+            oppforEachContract.OwnerId=System.label.Southalls_Contract_Owner_Id;
+            oppforEachContract.StageName='Renewal Contact Due';
+            oppforEachContract.ELAS_Opportunity_Pot__c='Atlas Internal Only';
+            oppforEachContract.Original_Contract__c=eachContract.Id;
+            oppforEachContract.Type='Existing Business';
+            oppforEachContract.Deal_Start_Date__c=eachContract.EndDate.addDays(1);
+            oppforEachContract.CloseDate=eachContract.EndDate;
+            oppforEachContract.Contract_Length_Mths__c=String.valueOf(eachContract.ContractTerm);
+            oppforEachContract.Contract_Length_Months__c=eachContract.ContractTerm;
+            oppforEachContract.Amount=eachContract.Total_Contract_Value__c;
+            oppforEachContract.Original_Multiple_Total_Contract_Value__c=eachContract.Total_Contract_Value__c;
+            oppforEachContract.Payment_Period__c=eachContract.Payment_Period__c;
+            oppforEachContract.Preferred_Payment_Date__c=eachContract.Preferred_Payment_Date__c;
+            oppstoInsert.add(oppforEachContract);
+        }
+        if(!oppstoInsert.isEmpty()){
+            Database.insert(oppstoInsert, false);
+        }
+    }
+}

@@ -1,0 +1,13 @@
+
+
+newac dosomething(newrec, oldrec)
+
+
+
+acc= new acc
+ac.id =
+
+ac
+
+oldac.ac
+testdosomething()

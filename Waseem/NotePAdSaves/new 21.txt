@@ -1,0 +1,3 @@
+SELECT Id, SBQQ__DynamicOptionId__c, SBQQ__RequiredById__c, SBQQ__Contract__c, SBQQ__ProductName__c, SBQQ__ProductId__c FROM SBQQ__Subscription__c where sbqq__Contract__c = '8003H000000W8iKQAS'
+
+a4D4G000001E81fUAC:01t4G0000090Mi1

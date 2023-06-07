@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>45.0</apiVersion>
+    <packageVersions>
+        <majorNumber>2</majorNumber>
+        <minorNumber>0</minorNumber>
+        <namespace>SBES</namespace>
+    </packageVersions>
+    <packageVersions>
+        <majorNumber>226</majorNumber>
+        <minorNumber>8</minorNumber>
+        <namespace>SBQQ</namespace>
+    </packageVersions>
+    <packageVersions>
+        <majorNumber>22</majorNumber>
+        <minorNumber>9</minorNumber>
+        <namespace>echosign_dev1</namespace>
+    </packageVersions>
+    <status>Active</status>
+</ApexClass>

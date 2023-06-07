@@ -1,0 +1,1 @@
+public class bg_InvalidRecordTypeException extends Exception {}

@@ -1,0 +1,159 @@
+/**
+ * @File Name          : plgservice.cls
+ * @Description        :
+ * @Author             : YM RC Dev
+ * @Group              :
+ * @Last Modified By   :
+ * @Last Modified On   :10/09/2021.
+ * @Modification Log   :
+ *==============================================================================
+ * Ver         Date                     Author                 Modification
+ *==============================================================================
+ * 1.0     10/09/2021      Initial Version
+ **/
+@RestResource(urlMapping='/plgservices/*')
+global without Sharing class RC_PLGservice {
+  @HttpGet
+  global static PlgServiceWrapper getLeadContactAccount() {
+    RestRequest req = RestContext.request;
+    PlgServiceWrapper response = new PlgServiceWrapper();
+    String email = req?.params?.get('email');
+    try {
+      List<Lead> ldlist = [
+        SELECT id, Category__c
+        FROM Lead
+        WHERE email = :email
+        ORDER BY lastmodifieddate DESC
+        LIMIT 1
+      ];
+      if (ldlist == null || ldlist.isEmpty()) {
+        List<Contact> ctlist = [
+          SELECT id, Category__c
+          FROM contact
+          WHERE email = :email
+          ORDER BY lastmodifieddate DESC
+          LIMIT 1
+        ];
+        if (ctlist == null || ctlist.isEmpty()) {
+          List<Account> aclist = [
+            SELECT id, name, Account_Category__c, Customer_ID__c
+            FROM Account
+            WHERE Customer_SPOC_Email__c = :email AND Customer_ID__c != NULL
+            ORDER BY lastmodifieddate DESC
+            LIMIT 1
+          ];
+          if (aclist == null || aclist.isEmpty()) {
+            response = buildresponse(true, 'no match found', null, null, null);
+          } else {
+            response = buildresponse(
+              true,
+              'account',
+              'Email present on Account as Customer SPOC',
+              (String) aclist[0].name,
+              (String) aclist[0].Customer_ID__c
+            );
+          }
+        } else {
+          response = buildresponse(true, 'contact', (String) ctlist[0].Category__c, null, null);
+        }
+      } else {
+        response = buildresponse(true, 'Lead', (String) ldlist[0].Category__c, null, null);
+      }
+    } catch (Exception e) {
+      response = buildresponse(false, e.getMessage(), null, null, null);
+    }
+    return response;
+  }
+
+  private static PlgServiceWrapper buildresponse(
+    Boolean success,
+    string place,
+    string category,
+    string accountname,
+    string customerid
+  ) {
+    PlgServiceWrapper psw = new PlgServiceWrapper();
+    if (success) {
+      psw.status = 'SUCCESS';
+      psw.message = 'matching ' + place + ' found';
+      if (place == 'Lead') {
+        if (category != null) {
+          psw.leadcategory = category;
+        }
+      } else if (place == 'contact') {
+        if (category != null) {
+          psw.contactcategory = category;
+        }
+      } else if (place == 'account SPOC') {
+        psw.accountcategory = category;
+        if (accountname != null) {
+          psw.accountname = accountname;
+        }
+        if (customerid != null) {
+          psw.customerid = customerid;
+        }
+      } else {
+        psw.message = place;
+      }
+    } else {
+      psw.status = 'ERROR';
+      psw.message = place;
+    }
+    return psw;
+  }
+
+  @HttpPost
+  global static LeadCreatePlgServiceResponseWrapper createlead() {
+    RestRequest req = RestContext.request;
+    RestResponse res = RestContext.response;
+    LeadCreatePlgServiceResponseWrapper responseWrapper = new LeadCreatePlgServiceResponseWrapper();
+    RestRequest reqObj = RestContext.request;
+    Blob body = reqObj.requestBody;
+    String requestString = body.toString();
+    try {
+      LeadCreatePlgServiceRequestWrapper requestWrapper = (LeadCreatePlgServiceRequestWrapper) JSON.deserialize(
+        requestString,
+        LeadCreatePlgServiceRequestWrapper.class
+      );
+      if (String.isBlank(requestWrapper.lastname)) {
+        responseWrapper.status = 'ERROR';
+        responseWrapper.message = 'Lastname cannot be blank.';
+        return responseWrapper;
+      } else if (String.isBlank(requestWrapper.companyname)) {
+        responseWrapper.status = 'ERROR';
+        responseWrapper.message = 'Companyname cannot be blank.';
+        return responseWrapper;
+      } else {
+        Lead leadrecord = new Lead();
+        if (requestWrapper.email != '') {
+          leadrecord.email = requestWrapper.email;
+        }
+        if (requestWrapper.firstname != '') {
+          leadrecord.firstname = requestWrapper.firstname;
+        }
+        if (requestWrapper.lastname != '') {
+          leadrecord.lastname = requestWrapper.lastname;
+        }
+        if (requestWrapper.salutation != '') {
+          leadrecord.salutation = requestWrapper.salutation;
+        }
+        if (requestWrapper.leadcategory != '') {
+          leadrecord.Category__c = requestWrapper.leadcategory;
+        }
+        if (requestWrapper.companyname != '') {
+          leadrecord.Company = requestWrapper.companyname;
+        }
+        if (requestWrapper.phone != '') {
+          leadrecord.phone = requestWrapper.phone;
+        }
+        insert leadrecord;
+        responseWrapper.status = 'SUCCESS';
+        responseWrapper.message = 'Lead created successfully.';
+      }
+    } catch (Exception e) {
+      responseWrapper.status = 'ERROR';
+      responseWrapper.message = e.getMessage();
+    }
+    return responseWrapper;
+  }
+}

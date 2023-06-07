@@ -1,0 +1,243 @@
+public class iHASCOLmsRestOutbound {
+	
+    private iHASCOLms__mdt settings;
+    private String Endpoint = '';
+    private String bearerToken = '';
+    private String authorizationHeader = 'Bearer ';
+    private HttpResponse res;
+    private Map<String,String> LmsData = new Map<String, String>();
+    private Datetime dataTimestamp;
+        
+    private static final Integer TIMEOUT_MS = 30000;
+    
+//    private static ApplicationLogger logger = ApplicationLogger.getInstance();
+    
+    private Boolean successSoFar = true;
+    
+    private static final Integer MAX_ERROR_LENGTH = 1000;
+    @TestVisible private static final String ERROR_MSG_HTTP = 'Non 200 status code received at ';
+    @TestVisible private static final String ERROR_MSG = 'Unable to process LMS Data';
+    
+    public iHASCOLmsRestOutbound() {
+        getGeneralSettings();
+    }
+      
+    private void getGeneralSettings() {   
+        iHASCOLms__mdt settings = iHASCOLms__mdt.getInstance('Test');
+        this.settings = settings;
+        this.Endpoint = settings.URL__c;
+        this.bearerToken = settings.BearerToken__c;
+    }
+    
+    private HttpRequest setupCall() {
+        
+        this.authorizationHeader += this.bearerToken;
+        
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint(this.Endpoint);
+        req.setMethod('POST');
+        req.setHeader('Authorization', authorizationHeader);
+        req.setHeader('Content-Type','application/json'); 
+    //    req.setTimeout(TIMEOUT_MS);
+        
+        return req;
+    }
+    
+    public void sendOrderData(Order record, String eventType) {
+        
+        List<Database.SaveResult> results;
+        HttpRequest req;        
+        
+        if (successSofar) req = setupCall();
+        if (successSofar) buildOrderRequest(req , record , eventType);
+        if (successSofar) sendFleetInfoRequest(req);
+        if (successSofar) parseFleetInfoResponse(res);      
+    }
+    
+    public void sendContractData(id recordid, String eventType) {
+        
+        List<Database.SaveResult> results;
+        HttpRequest req;        
+        
+        if (successSofar) req = setupCall();
+        if (successSofar) req = buildContractRequest(req , recordId , eventType);
+        if (successSofar) sendFleetInfoRequest(req);
+        if (successSofar) parseFleetInfoResponse(res);      
+    }
+    
+    private HttpRequest buildContractRequest(HttpRequest req, id recordId, string eventType) {
+        List<Contract> records = [SELECT id,License_Model__c,ContractNumber,StartDate,EndDate,
+                                  SBQQ__Opportunity__c,AccountId,Account.Name,Account.LMS_ID__c,SBQQ__Quote__r.SBQQ__PrimaryContact__c,
+                                  SBQQ__Quote__r.SBQQ__PrimaryContact__r.FirstName,SBQQ__Quote__r.SBQQ__PrimaryContact__r.LastName,
+                                  SBQQ__Quote__r.SBQQ__PrimaryContact__r.Email,SBQQ__Quote__r.SBQQ__PrimaryContact__r.Phone,
+                                  Owner.FirstName,Owner.LastName,Owner.Email,Owner.Phone,
+                                  (SELECT Id,CreatedDate,SBQQ__Quantity__c,Name,SBQQ__Contract__c,SBQQ__ContractNumber__c,
+                                  SBQQ__StartDate__c,SBQQ__EndDate__c,SBQQ__ProductName__c,ProductCode__c,
+                                  ParentProductCode__c,Service_Start_Date__c,Service_End_Date__c,SBQQ__RequiredById__c,
+                                  Ihasco_Number_of_Credits__c,iHasco_Number_of_Users__c
+                                  FROM sbqq__Subscriptions__r)
+                                  FROM Contract where id = :recordId];
+        List<site__c> sites = new List<site__c>();
+        For(Site__c site: [SELECT id,name,city__c, street__c,Active__c from Site__c where Account__c = :records[0].AccountId]){
+            sites.add(site);
+        }
+        iHASCOLmsWrapper wrap = new iHASCOLmsWrapper(records[0] , sites,eventType);
+        String JSONString = (JSON.serializePretty(wrap));
+        req.setBody(JSONString);
+        return req;
+    }
+    
+    private void buildOrderRequest(HttpRequest req, Order record, string eventType) {
+        Contact c = new Contact();
+        iHASCOLmsWrapper wrap = new iHASCOLmsWrapper(record , c);
+    }
+    
+    private void sendFleetInfoRequest(HttpRequest req) {
+        
+        Http http = new Http();
+                
+        try {
+            
+            this.dataTimestamp = Datetime.now();
+       //     System.debug('-->application log below' );
+       //     system.debug('waseem-->' +  apl.id);
+       //     system.debug('req.Header--->' + req.getHeader('Authorization'));
+       //     system.debug('req.EventType--->' + req.getBody());
+
+       	    res = http.send(req);
+            ApplicationLog__c apl = new ApplicationLog__c();
+            apl.name = 'iHASCOLmsRestOutbound' + Datetime.Now();
+            apl.message__c = req.getMethod();
+            apl.message__c += req.getEndpoint();
+            apl.message__c += req.getBody();
+            if(res != null){
+                apl.Response__c = res.getBody();
+            }
+            insert apl;
+     //       system.debug('response-code-->'+ res.getStatusCode());
+     //       system.debug('response-body-->'+ res.getBody());
+        }
+        catch (Exception e) {
+            System.debug('Exception message' + e.getMessage());
+  /*          
+            ApplicationLog__c log = logger.newError('IHASCO Lms')
+                                          .setErrorValues(e.getMessage(),
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'sendDataToLMSFailed',
+                                                          2,
+                                                          e.getStackTraceString());
+            insert log;  */
+            successSofar = false;
+        }
+    }
+    
+    private void parseFleetInfoResponse(HTTPResponse res) {
+        
+        try {
+            
+            if (res.getStatusCode() == 200) {        
+                System.debug('Success LMS Data Sent');
+            }
+            else {
+                
+                LmsData = (Map<String,String>)JSON.deserialize(res.getBody(), Map<String,String>.class);
+                String message = LmsData + dataTimestamp.format() + ' >>> ' + 
+                                 res.getStatusCode() + ' >>> ' + res.getStatus();
+                System.debug('--Message' + message);
+    /*            
+                ApplicationLog__c log = logger.newError('Incident Management')
+                                              .setErrorValues(message,
+                                                              IMRestServiceOutbound.class.getName(),
+                                                              'parseFleetInfoResponse',
+                                                              2,
+                                                              '');
+                insert log; */
+                successSofar = false;
+            }
+        }
+        catch (Exception e) {
+            
+            String message = ERROR_MSG + e.getMessage();
+   /*              
+            ApplicationLog__c log = logger.newError('LMS')
+                                          .setErrorValues(message,
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'parseFleetInfoResponse',
+                                                          2,
+                                                          e.getStackTraceString());
+            insert log; */ 
+			successSofar = false;
+        }
+    }
+    
+    private void populateStagingRecs() {
+        
+        String error = '';
+        Integer errorCount = 0;
+        
+        for (String ws : this.lmsData.KeySet()) {
+            
+            try {
+                
+                
+            }
+            catch (Exception e) {
+                
+                errorCount++;
+                error += (String.valueOf(errorCount) + ': ' + e.getMessage() + ' --- ');
+            }
+        }
+        
+        this.lmsData.clear();
+        
+        if (errorCount > 0) {
+            
+            error = (error.length() > MAX_ERROR_LENGTH? error.substring(0, MAX_ERROR_LENGTH) : error);
+      /*       
+            ApplicationLog__c log = logger.newError('Incident Management')
+                                          .setErrorValues(ERROR_MSG_BAD_MAP + error,
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'populateStagingRecs',
+                                                          2,
+                                                          '');  
+            insert log; */
+        }
+    }
+    
+    private void processResults(List<Database.SaveResult> results) {
+        
+        String error = '';
+        Integer errorCount = 0;
+        
+        for (Database.SaveResult sr : results) {
+            
+            if (!sr.isSuccess()) {
+                
+                errorCount++;
+                error += (String.valueOf(errorCount)  + ': ');
+                          
+                for (Database.Error e : sr.getErrors()) {
+                    
+                    error += (e.getMessage() + ', ');
+                }
+                
+                error += ' --- ';
+            }
+        }
+        
+        if (errorCount > 0) {
+            
+            error = (error.length() > MAX_ERROR_LENGTH? error.substring(0, MAX_ERROR_LENGTH) : error);
+    /*         
+            ApplicationLog__c log = logger.newError('Incident Management')
+                                          .setErrorValues(ERROR_MSG_BAD_INSERT + error,
+                                                          IMRestServiceOutbound.class.getName(),
+                                                          'populateStagingRecs',
+                                                          2,
+                                                          '');
+            insert log;  */ 
+        }
+    }
+        
+    private class iHASCOLmsRestOutboundException extends Exception {}
+}
